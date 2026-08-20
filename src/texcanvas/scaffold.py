@@ -106,8 +106,19 @@ _BUILD_SH = """\
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Resolve the template shipped inside the texcanvas package.
-TEMPLATE=$(python3 -c 'import texcanvas, pathlib; print(pathlib.Path(texcanvas.__file__).parent / "templates" / "beamer-academic.pptx")')
+# Locate the texcanvas that owns the `texcanvas` command on PATH, then resolve
+# the template shipped inside that package. This works whether texcanvas was
+# installed via pipx, pip, or an activated venv.
+TEXCANVAS_BIN="$(command -v texcanvas || true)"
+if [ -z "$TEXCANVAS_BIN" ]; then
+  echo "Error: 'texcanvas' command not found on PATH." >&2
+  exit 127
+fi
+# Follow symlinks to the real console script, whose sibling python can import texcanvas.
+REAL="$(readlink -f "$TEXCANVAS_BIN" 2>/dev/null || python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$TEXCANVAS_BIN")"
+PYTHON_BIN="$(dirname "$REAL")/python"
+[ -x "$PYTHON_BIN" ] || PYTHON_BIN=python3
+TEMPLATE=$("$PYTHON_BIN" -c 'import texcanvas, pathlib; print(pathlib.Path(texcanvas.__file__).parent / "templates" / "beamer-academic.pptx")')
 
 texcanvas build deck.yml \\
   -t "$TEMPLATE" \\
