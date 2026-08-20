@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "texcanvas"
-version = "0.1.0"
+version = "0.2.0"
 description = "Generate editable Beamer-style academic PPTX decks from YAML"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,9 @@ texcanvas = "texcanvas.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+texcanvas = ["templates/*.pptx"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

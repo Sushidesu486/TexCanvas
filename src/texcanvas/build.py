@@ -12,6 +12,7 @@ from .assets import validate_assets
 from .errors import InputError, RenderError, TexCanvasError
 from .loader import load_deck
 from .render import render_deck
+from .scaffold import bundled_template_path
 from .theme import DEFAULT_THEME
 from .validate import content_warnings
 
@@ -34,10 +35,7 @@ def _remove_all_slides(prs: Presentation) -> None:
 
 def _presentation(template: Path | None) -> tuple[Presentation, bool]:
     if template is None:
-        prs = Presentation()
-        prs.slide_width = Inches(13.333)
-        prs.slide_height = Inches(7.5)
-        return prs, True
+        template = bundled_template_path()
     if not template.is_file():
         raise InputError(f"template: file not found: {template}")
     try:

@@ -8,21 +8,31 @@ TexCanvas 是一个 YAML → 可编辑 PPTX 生成器：把结构化的 YAML dec
 
 ## 1. 如何调用
 
-### CLI
+### 推荐工作流：init 脚手架 → 编辑 YAML → build
 
 ```bash
-texcanvas <input.yml> -o <output.pptx> [选项]
-# 等价的模块入口
-python -m texcanvas <input.yml> -o <output.pptx> [选项]
+texcanvas init my-talk        # 在当前目录创建 my-talk/ 脚手架
+cd my-talk
+bash build.sh                 # 生成 output/deck.pptx（build.sh 自动定位包内模板）
 ```
 
-参数：
+脚手架生成：`AGENTS.md`（精简版）、`deck.yml`（最小可跑：title + section_divider + content 三页）、`assets/`（放图片）、`build.sh`（wrapper）、`output/`、`.gitignore`。agent 只需编辑 `deck.yml` 然后跑 `build.sh`。
+
+### CLI（子命令结构）
+
+```bash
+texcanvas build <input.yml> -o <output.pptx> [选项]   # 从 YAML 生成 pptx
+texcanvas init <name> [-d <dir>]                      # 创建脚手架
+python -m texcanvas build <input.yml> -o <output.pptx> # 等价模块入口
+```
+
+`build` 参数：
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
 | `input` | 是 | YAML deck 描述文件路径 |
 | `-o, --output` | 是 | 输出 .pptx 路径；父目录不存在会自动创建 |
-| `-t, --template` | 否 | 可编辑 PPTX 模板；保留母版/主题/页面尺寸，模板里的示例页会被清空（模板本身不被修改） |
+| `-t, --template` | 否 | 可编辑 PPTX 模板；不传时用随包 `beamer-academic.pptx`（母版已烘焙背景），传则保留母版/主题、清空示例页 |
 | `--asset-root` | 否 | 相对图片路径基准目录；默认为 YAML 文件所在目录 |
 | `--strict` | 否（默认） | 图片缺失/损坏/格式不支持时立即失败 |
 | `--no-strict` | 否 | 记录 warning 并在页面放入可编辑占位框后继续 |
@@ -42,16 +52,19 @@ Warnings: 0
 ### Python API
 
 ```python
-from texcanvas import build
+from texcanvas import build, init_project, bundled_template_path
 
+# 生成 pptx（不传 template 即用随包模板）
 report = build(
-    input="examples/demo.yml",
-    output="output/demo.pptx",
-    template="templates/beamer-academic.pptx",  # 可选
-    strict=True,                                  # 默认 True
-    asset_root="examples",                        # 默认 = input 的父目录
+    input="deck.yml",
+    output="output/deck.pptx",
+    strict=True,        # 默认
+    asset_root=".",     # 默认 = input 的父目录
 )
 # report: BuildReport(output, slide_count, section_count, warnings)
+
+# 在代码里创建脚手架
+init_project(parent_dir, "my-talk")
 ```
 
 异常基类 `TexCanvasError`（子类 `InputError` / `ValidationError` / `AssetError` / `RenderError`），捕获 `TexCanvasError` 即可覆盖所有失败情况。保存采用同目录临时文件 + 原子替换，失败不会留下半成品目标文件。
