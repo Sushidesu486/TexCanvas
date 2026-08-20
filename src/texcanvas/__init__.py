@@ -1,12 +1,12 @@
 from .build import BuildReport, build
-from .errors import AssetError, BeamerPptxError, InputError, RenderError, ValidationError
+from .errors import AssetError, InputError, RenderError, TexCanvasError, ValidationError
 
 __all__ = [
     "AssetError",
-    "BeamerPptxError",
     "BuildReport",
     "InputError",
     "RenderError",
+    "TexCanvasError",
     "ValidationError",
     "build",
 ]

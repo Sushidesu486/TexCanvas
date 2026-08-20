@@ -1,7 +1,7 @@
 import pytest
 
-from beamer_pptx.errors import ValidationError
-from beamer_pptx.loader import deck_from_mapping
+from texcanvas.errors import ValidationError
+from texcanvas.loader import deck_from_mapping
 
 
 def minimal(slides=None):

@@ -1,6 +1,6 @@
 import pytest
 
-from beamer_pptx.geometry import Box, contain, cover, navigation_widths, page_label
+from texcanvas.geometry import Box, contain, cover, navigation_widths, page_label
 
 
 def test_contain_centers_wide_image():

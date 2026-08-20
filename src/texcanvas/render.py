@@ -7,11 +7,16 @@ from pptx import Presentation
 from .errors import RenderError
 from .model import Deck, SlideKind
 from .renderers import (
+    render_block,
+    render_code,
     render_conclusion,
     render_content,
+    render_equation,
     render_image,
     render_references,
     render_section_divider,
+    render_table,
+    render_title,
     render_two_columns,
 )
 from .renderers.chrome import render_chrome
@@ -20,10 +25,15 @@ from .theme import Theme
 
 
 RENDERERS = {
+    SlideKind.TITLE: render_title,
     SlideKind.SECTION_DIVIDER: render_section_divider,
     SlideKind.CONTENT: render_content,
     SlideKind.TWO_COLUMNS: render_two_columns,
     SlideKind.IMAGE: render_image,
+    SlideKind.CODE: render_code,
+    SlideKind.TABLE: render_table,
+    SlideKind.EQUATION: render_equation,
+    SlideKind.BLOCK: render_block,
     SlideKind.CONCLUSION: render_conclusion,
     SlideKind.REFERENCES: render_references,
 }

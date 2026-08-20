@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from beamer_pptx.model import Deck, Metadata
+from texcanvas.model import Deck, Metadata
 
 
 def test_models_are_immutable():

@@ -4,7 +4,7 @@ from pathlib import Path
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-from beamer_pptx import build
+from texcanvas import build
 
 
 def _shape(slide, name):

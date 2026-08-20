@@ -15,8 +15,8 @@ def main() -> None:
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
     prs.core_properties.title = "Beamer Academic Editable Template"
-    prs.core_properties.subject = "16:9 starter template for beamer-pptx"
-    prs.core_properties.author = "beamer-pptx"
+    prs.core_properties.subject = "16:9 starter template for texcanvas"
+    prs.core_properties.author = "texcanvas"
     prs.save(output)
     print(f"Created {output}")
 

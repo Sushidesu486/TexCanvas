@@ -4,7 +4,7 @@ from pathlib import Path
 from pptx import Presentation
 from pptx.util import Inches
 
-from beamer_pptx import build
+from texcanvas import build
 
 
 def digest(path: Path) -> str:

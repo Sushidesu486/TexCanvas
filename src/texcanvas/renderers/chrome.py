@@ -6,7 +6,7 @@ from pptx.util import Inches, Pt
 
 from ..geometry import navigation_widths, page_label
 from ..model import Slide, SlideKind
-from .common import RenderContext, add_box, add_text, color
+from .common import RenderContext, add_box, add_text, color, set_run_font
 
 
 def _draw_background(ctx: RenderContext) -> None:
@@ -44,7 +44,7 @@ def _draw_navigation(ctx: RenderContext) -> None:
         paragraph.text = section.short_title
         paragraph.alignment = PP_ALIGN.CENTER
         run = paragraph.runs[0]
-        run.font.name = ctx.theme.chinese_font
+        set_run_font(run, latin=ctx.theme.chinese_font, ea=ctx.theme.chinese_font)
         run.font.size = Pt(font_size)
         run.font.bold = active
         run.font.color.rgb = color(ctx.theme.white if active else ctx.theme.primary)
@@ -108,6 +108,9 @@ def _draw_footer(ctx: RenderContext) -> None:
 
 def render_chrome(ctx: RenderContext, slide: Slide) -> None:
     _draw_background(ctx)
+    if slide.kind is SlideKind.TITLE:
+        # The title slide is a full-bleed cover: no navigation, title rule, or footer.
+        return
     _draw_navigation(ctx)
     _draw_title(ctx, slide)
     _draw_footer(ctx)

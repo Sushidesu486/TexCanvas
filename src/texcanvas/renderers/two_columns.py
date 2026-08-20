@@ -5,7 +5,7 @@ from .common import RenderContext, add_box, add_rich_text
 
 
 def _render_column(ctx: RenderContext, column: Column, side: str, x: float, width: float) -> None:
-    add_box(ctx, f"DSH_{side}_PANEL", x, 1.55, width, ctx.slide_height - 2.32, fill=ctx.theme.white, line=ctx.theme.pale, radius=True)
+    add_box(ctx, f"DSH_{side}_PANEL", x, 1.55, width, ctx.slide_height - 2.32, fill=ctx.theme.white, line=ctx.theme.pale, radius=False)
     paragraphs: list[tuple[str, float, bool, str, float]] = []
     if column.heading:
         paragraphs.append((column.heading, 19, True, ctx.theme.primary, 13))

@@ -13,6 +13,10 @@ sections:
     title: 研究背景
     short_title: Background
     slides:
+      - kind: title
+        title: 科研训练汇报
+        subtitle: A Beamer-style editable presentation
+
       - kind: section_divider
         title: 研究背景
         subtitle: Motivation and research question
@@ -59,13 +63,55 @@ sections:
           - 实验组指标显著提升
           - 结果在不同重复中保持一致
 
+      - kind: equation
+        title: 损失函数
+        equation: "L = -\\frac{1}{N}\\sum_{i=1}^{N} y_i \\log p_i"
+
+      - kind: table
+        title: 方法对比
+        table:
+          header: [方法, 准确率, 推理时间]
+          rows:
+            - [Baseline, "0.82", "12.4 ms"]
+            - [Ours, "0.91", "8.1 ms"]
+          caption: 表 1：不同方法的指标对比
+
+      - kind: code
+        title: 训练入口
+        code:
+          lang: python
+          source: |
+            def train(model, data):
+                # one optimization step
+                loss = model.loss(data)
+                loss.backward()
+                optimizer.step()
+          caption: Listing 1
+
   - id: conclusion
     title: 结论与展望
     short_title: Conclusion
     slides:
+      - kind: block
+        title: 核心发现
+        block:
+          style: default
+          title: 结论
+          body: 实验结果支持主要研究假设。
+          bullets:
+            - 方法具有可重复性
+            - 后续需要扩大样本量
+
+      - kind: block
+        title: 注意事项
+        block:
+          style: alert
+          title: 警示
+          body: 样本量仍然有限，外推需谨慎。
+
       - kind: conclusion
-        title: 结论
-        takeaway: 实验结果支持主要研究假设。
+        title: 总结
+        takeaway: 提出的方法在准确率与效率上均有提升。
         bullets:
           - 方法具有可重复性
           - 后续需要扩大样本量

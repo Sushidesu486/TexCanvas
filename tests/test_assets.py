@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from beamer_pptx.assets import inspect_image
-from beamer_pptx.errors import AssetError
+from texcanvas.assets import inspect_image
+from texcanvas.errors import AssetError
 
 
 def test_png_image_is_inspected(tmp_path: Path):

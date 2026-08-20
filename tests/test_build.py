@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pptx import Presentation
 
-from beamer_pptx import build
+from texcanvas import build
 
 
 def test_build_returns_report_and_reopens(deck_files: tuple[Path, Path], tmp_path: Path):

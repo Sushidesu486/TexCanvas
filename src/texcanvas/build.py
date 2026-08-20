@@ -9,7 +9,7 @@ from pptx import Presentation
 from pptx.util import Inches
 
 from .assets import validate_assets
-from .errors import BeamerPptxError, InputError, RenderError
+from .errors import InputError, RenderError, TexCanvasError
 from .loader import load_deck
 from .render import render_deck
 from .theme import DEFAULT_THEME
@@ -79,7 +79,7 @@ def build(
     try:
         prs.save(str(temporary))
         os.replace(temporary, output_path)
-    except BeamerPptxError:
+    except TexCanvasError:
         raise
     except Exception as exc:
         raise RenderError(f"output: cannot save {output_path}: {exc}") from exc

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from beamer_pptx.cli import main
+from texcanvas.cli import main
 
 
 def test_cli_builds_and_prints_summary(deck_files: tuple[Path, Path], tmp_path: Path, capsys):

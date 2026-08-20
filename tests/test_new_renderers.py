@@ -1,0 +1,155 @@
+from __future__ import annotations
+
+import zipfile
+from pathlib import Path
+
+import pytest
+from PIL import Image
+from pptx import Presentation
+
+from texcanvas import build
+
+
+def _shape(slide, name):
+    return next(shape for shape in slide.shapes if shape.name == name)
+
+
+@pytest.fixture
+def primitives_deck(tmp_path: Path) -> tuple[Path, Path]:
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    yaml_path = tmp_path / "deck.yml"
+    yaml_path.write_text(
+        r"""
+metadata: {title: Primitives, short_title: Prim}
+aspect: "16:9"
+sections:
+  - id: code
+    title: Code
+    short_title: Code
+    slides:
+      - kind: code
+        title: Python
+        code: {lang: python, source: "def f(x):\n    return x + 1\n"}
+  - id: table
+    title: Table
+    short_title: Table
+    slides:
+      - kind: table
+        title: Results
+        table:
+          header: [Method, Score]
+          rows: [[Baseline, "0.8"], [Ours, "0.9"]]
+          caption: Table 1
+  - id: equation
+    title: Equation
+    short_title: Eq
+    slides:
+      - kind: equation
+        title: Loss
+        equation: |
+          L = -\frac{1}{N}\sum_{i=1}^{N} y_i
+  - id: block
+    title: Blocks
+    short_title: Blocks
+    slides:
+      - kind: block
+        title: Note
+        block: {style: default, title: Note, body: A note, bullets: [one, two]}
+      - kind: block
+        title: Alert
+        block: {style: alert, title: Warning, body: Be careful}
+      - kind: block
+        title: Example
+        block: {style: example, title: Demo, body: An example}
+""".strip(),
+        encoding="utf-8",
+    )
+    return yaml_path, tmp_path
+
+
+def test_build_with_new_kinds_and_reopens(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "out.pptx"
+    report = build(source, output, asset_root=asset_root)
+    assert report.slide_count == 6
+    assert report.section_count == 4
+    assert report.warnings == ()
+    assert output.is_file() and output.stat().st_size > 0
+    assert len(Presentation(output).slides) == 6
+
+
+def test_code_renders_with_panel_and_header_runs(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "code.pptx"
+    build(source, output, asset_root=asset_root)
+    prs = Presentation(output)
+    code_slide = prs.slides[0]
+    panel = _shape(code_slide, "DSH_CODE_PANEL")
+    assert panel is not None
+    body = _shape(code_slide, "DSH_CODE_BODY")
+    # Line 1: "def f(x):" -> def keyword; Line 2: "    return x + 1" -> return keyword.
+    first_line_runs = body.text_frame.paragraphs[0].runs
+    second_line_runs = body.text_frame.paragraphs[1].runs
+    assert any(run.text == "def" for run in first_line_runs)
+    assert any(run.text == "return" for run in second_line_runs)
+    # keyword run should be colored with the theme's keyword color
+    def_run = next(run for run in first_line_runs if run.text == "def")
+    assert str(def_run.font.color.rgb) == "0B3D91"
+
+
+def test_table_renders_grid_and_header(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "table.pptx"
+    build(source, output, asset_root=asset_root)
+    prs = Presentation(output)
+    slide = prs.slides[1]
+    table_shape = _shape(slide, "DSH_TABLE")
+    assert table_shape.has_table
+    table = table_shape.table
+    assert len(table.rows) == 3  # 1 header + 2 body
+    assert len(table.columns) == 2
+    assert table.cell(0, 0).text == "Method"
+    assert table.cell(1, 0).text == "Baseline"
+    assert table.cell(2, 1).text == "0.9"
+    assert _shape(slide, "DSH_CAPTION").text == "Table 1"
+
+
+def test_equation_renders_fraction_and_scripts(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "eq.pptx"
+    build(source, output, asset_root=asset_root)
+    prs = Presentation(output)
+    slide = prs.slides[2]
+    body = _shape(slide, "DSH_EQUATION")
+    runs = body.text_frame.paragraphs[0].runs
+    texts = [run.text for run in runs]
+    # fraction slash renders, sigma renders, superscript + subscript baselines applied
+    assert "⁄" in texts  # fraction slash
+    assert "∑" in texts  # sigma
+    has_sup = any(run.font._rPr.get("baseline") == "30000" for run in runs if run.font._rPr is not None)
+    has_sub = any(run.font._rPr.get("baseline") == "-25000" for run in runs if run.font._rPr is not None)
+    assert has_sup and has_sub
+
+
+def test_blocks_render_panel_and_title_for_each_style(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "blocks.pptx"
+    build(source, output, asset_root=asset_root)
+    prs = Presentation(output)
+    for index, expected_title in enumerate(["Note", "Warning", "Demo"]):
+        slide = prs.slides[3 + index]
+        _shape(slide, "DSH_BLOCK_PANEL")
+        title = _shape(slide, "DSH_BLOCK_TITLE")
+        assert title.text == expected_title
+
+
+def test_pptx_zip_valid_for_new_kinds(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "zip.pptx"
+    build(source, output, asset_root=asset_root)
+    assert zipfile.is_zipfile(output)
+    with zipfile.ZipFile(output) as archive:
+        names = set(archive.namelist())
+    assert "[Content_Types].xml" in names
+    assert "ppt/slides/slide1.xml" in names

@@ -14,7 +14,7 @@ def render_conclusion(ctx: RenderContext, slide: Slide) -> None:
         1.25,
         fill="FFF3E8",
         line=ctx.theme.accent,
-        radius=True,
+        radius=False,
     )
     add_text(
         ctx,

@@ -8,7 +8,19 @@ from typing import Any
 import yaml
 
 from .errors import InputError, ValidationError
-from .model import Column, Deck, ImageSpec, Metadata, Section, Slide, SlideKind
+from .model import (
+    BlockSpec,
+    BlockStyle,
+    CodeSpec,
+    Column,
+    Deck,
+    ImageSpec,
+    Metadata,
+    Section,
+    Slide,
+    SlideKind,
+    TableSpec,
+)
 from .validate import validate_deck
 
 
@@ -80,6 +92,48 @@ def _slide(value: Any, location: str) -> Slide:
             fit=_text(image_raw.get("fit", "contain"), f"{location}.image.fit", required=True),
         )
 
+    code = None
+    if "code" in raw and raw["code"] is not None:
+        code_raw = _mapping(raw["code"], f"{location}.code")
+        code = CodeSpec(
+            source=_text(code_raw.get("source"), f"{location}.code.source", required=True),
+            lang=_text(code_raw.get("lang"), f"{location}.code.lang"),
+            caption=_text(code_raw.get("caption"), f"{location}.code.caption"),
+        )
+
+    table = None
+    if "table" in raw and raw["table"] is not None:
+        table_raw = _mapping(raw["table"], f"{location}.table")
+        header = _text_tuple(table_raw.get("header"), f"{location}.table.header")
+        rows_value = table_raw.get("rows")
+        if rows_value is None:
+            rows: tuple[tuple[str, ...], ...] = ()
+        else:
+            rows_raw = _list(rows_value, f"{location}.table.rows")
+            rows = tuple(
+                _text_tuple(row, f"{location}.table.rows[{row_index}]")
+                for row_index, row in enumerate(rows_raw)
+            )
+        table = TableSpec(
+            header=header,
+            rows=rows,
+            caption=_text(table_raw.get("caption"), f"{location}.table.caption"),
+        )
+
+    block = None
+    if "block" in raw and raw["block"] is not None:
+        block_raw = _mapping(raw["block"], f"{location}.block")
+        block = BlockSpec(
+            style=_text(block_raw.get("style", BlockStyle.DEFAULT), f"{location}.block.style"),
+            title=_text(block_raw.get("title"), f"{location}.block.title"),
+            body=_text(block_raw.get("body"), f"{location}.block.body"),
+            bullets=_text_tuple(block_raw.get("bullets"), f"{location}.block.bullets"),
+        )
+
+    equation = ""
+    if "equation" in raw and raw["equation"] is not None:
+        equation = _text(raw["equation"], f"{location}.equation")
+
     return Slide(
         kind=kind,
         title=_text(raw.get("title"), f"{location}.title"),
@@ -88,10 +142,14 @@ def _slide(value: Any, location: str) -> Slide:
         bullets=_text_tuple(raw.get("bullets"), f"{location}.bullets"),
         columns=columns,
         image=image,
+        code=code,
+        table=table,
+        block=block,
         caption=_text(raw.get("caption"), f"{location}.caption"),
         takeaway=_text(raw.get("takeaway"), f"{location}.takeaway"),
         items=_text_tuple(raw.get("items"), f"{location}.items"),
         notes=_text(raw.get("notes"), f"{location}.notes"),
+        equation=equation,
     )
 
 

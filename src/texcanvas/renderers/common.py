@@ -6,6 +6,7 @@ from pathlib import Path
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.oxml.ns import qn
 from pptx.slide import Slide as PptxSlide
 from pptx.util import Inches, Pt
 
@@ -35,6 +36,26 @@ class RenderContext:
 
 def color(value: str) -> RGBColor:
     return RGBColor.from_string(value)
+
+
+def set_run_font(run, *, latin: str, ea: str) -> None:
+    """Authoritatively set both the Latin and East-Asian typefaces on a run.
+
+    python-pptx's ``font.name`` only writes ``a:latin``; WPS/PowerPoint pick the
+    East-Asian font (used for CJK characters) from ``a:ea`` and the complex-script
+    font from ``a:cs``, both of which would otherwise be inherited from the theme.
+    Writing all three keeps CJK glyphs in 苹方-简 and Latin/digits/symbols in Helvetica
+    regardless of the deck template's theme fonts.
+    """
+    run.font.name = latin
+    rPr = run.font._rPr
+    for tag, typeface in (("a:ea", ea), ("a:cs", ea)):
+        existing = rPr.find(qn(tag))
+        if existing is None:
+            existing = rPr.makeelement(qn(tag), {})
+            rPr.append(existing)
+        existing.set("typeface", typeface)
+
 
 
 def add_box(
@@ -92,7 +113,8 @@ def add_text(
     paragraph.space_after = Pt(0)
     paragraph.line_spacing = 1.1
     run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
-    run.font.name = font_name or ctx.theme.chinese_font
+    latin = font_name or ctx.theme.chinese_font
+    set_run_font(run, latin=latin, ea=ctx.theme.chinese_font)
     run.font.size = Pt(size)
     run.font.bold = bold
     run.font.color.rgb = color(text_color or ctx.theme.text)
@@ -124,7 +146,7 @@ def add_rich_text(
         paragraph.space_after = Pt(space_after)
         paragraph.line_spacing = 1.12
         run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
-        run.font.name = ctx.theme.chinese_font
+        set_run_font(run, latin=ctx.theme.chinese_font, ea=ctx.theme.chinese_font)
         run.font.size = Pt(size)
         run.font.bold = bold
         run.font.color.rgb = color(text_color)
