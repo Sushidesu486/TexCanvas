@@ -7,6 +7,10 @@ __pycache__/
 output/*.pptx
 !output/.gitkeep
 
+# build artifacts (sdist/wheel), reproducible via `python -m build`
+build/
+dist/
+
 # generated example output (rebuild via: texcanvas examples/demo.yml ...)
 examples/demo.pptx
 # local title-page visual reference template, not part of the distributable
