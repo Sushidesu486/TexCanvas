@@ -11,6 +11,7 @@ from pptx.util import Inches
 from .assets import validate_assets
 from .errors import InputError, RenderError, TexCanvasError
 from .loader import load_deck
+from .mathml import normalize_math_namespaces_in_pptx
 from .render import render_deck
 from .scaffold import bundled_template_path
 from .theme import DEFAULT_THEME
@@ -76,6 +77,10 @@ def build(
     temporary = output_path.with_name(f".{output_path.name}.{uuid.uuid4().hex}.tmp")
     try:
         prs.save(str(temporary))
+        # python-pptx serializes injected OMML with synthetic numeric prefixes
+        # and omits the math namespace on the slide root, which WPS won't render.
+        # Rewrite slide parts to use the canonical m: prefix (no-op when no math).
+        normalize_math_namespaces_in_pptx(temporary)
         os.replace(temporary, output_path)
     except TexCanvasError:
         raise
