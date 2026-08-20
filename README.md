@@ -134,12 +134,12 @@ section 的 `id` 可省略：英文标题会生成 slug，无法安全 slug 化�
 
 - `title`：封面页。从 deck `metadata` 读取标题/副标题/作者/单位/日期，绘制一条主色满宽带 + accent 高亮条 + 大标题 + 副标题 + 署名行；封面页不绘制导航、frame title 和页脚。建议作为 deck 的第一页。可省略 slide 级 `title`/`subtitle`，此时回退到 `metadata.title`/`metadata.subtitle`。
 - `section_divider`：章节编号、标题和可选副标题。
-- `content`：正文和 bullet list。
+- `content`：正文和 bullet list。可选 `citation`（页底灰色引用条）、`inline_image`（内联小图，文字环绕：`path`/`width`/`align: left|right`）。
 - `two_columns`：必须同时提供非空 `left` 和 `right`；列支持 `heading`、`body`、`bullets`。
 - `image`：必须提供 `image.path`；`fit` 可为 `contain` 或 `cover`；可选 `caption`。
 - `code`：必须提供 `code.source`；可选 `code.lang`（python/c/cpp/java/javascript/rust/go 等，未识别时回退为通用 C 系高亮）、`code.caption`。代码以等宽字体、带行内语法高亮（关键字/字符串/注释/数字不同颜色）绘制在直角面板内，全部为可编辑文本。
 - `table`：`table.header` 或 `table.rows` 至少有一项；`header` 为字符串列表，`rows` 为字符串列表的列表（行可参差，缺列留空）；可选 `table.caption`。生成原生 PPTX 表格，表头使用主题色填充，奇数行斑马底色，单元格带细网格线。
-- `equation`：必须提供 `equation` 文本。支持最小化的 LaTeX 风格标记：`\frac{a}{b}`、`\sum`/`\alpha`/`\rightarrow` 等符号命令、`\log`/`\sin` 等函数名、`^{...}` 上标和 `_{...}` 下标。以居中直角面板呈现，不依赖外部 LaTeX。
+- `equation`：必须提供 `equation` 文本（LaTeX）。系统装有 `pandoc` 时转成原生 OMML 公式对象（支持 `\frac`/`\sum`/`\sqrt`/`\begin{pmatrix}` 矩阵/`\begin{aligned}` 对齐等完整结构，WPS 可双击编辑），缺失时回退 Unicode 符号方案。以居中直角面板呈现。
 - `block`：必须提供 `block.body` 或 `block.bullets`；`block.style` 可为 `default`/`alert`/`example`（分别使用蓝/红/绿三套标题+底色，对应 beamer 的 block/alertblock/exampleblock）；可选 `block.title`。面板为直角边。
 - `conclusion`：提供醒目的 `takeaway` 和补充 bullets，二者至少有一项。
 - `references`：`items` 必填，生成可编辑的编号条目。
@@ -183,12 +183,12 @@ section 的 `id` 可省略：英文标题会生成 slug，无法安全 slug 化�
 
 ## 图片路径与 strict 模式
 
-相对图片路径以 `--asset-root` 为基准；未指定时以 YAML 文件所在目录为基准。当前明确支持 PNG、JPEG，SVG 不保证兼容并会被拒绝。
+相对图片路径（`image` 版式和 `content.inline_image`）以 `--asset-root` 为基准；未指定时以 YAML 文件所在目录为基准。当前明确支持 PNG、JPEG，SVG 不保证兼容并会被拒绝。
 
 - `--strict`（默认）：图片缺失、损坏或格式不支持时立即失败。
-- `--no-strict`：记录 warning，在页面放入明显且可编辑的占位框后继续生成。
+- `--no-strict`：记录 warning，在页面放入明显且可编辑的占位框后继续生成（内联图缺失则跳过，正文保持满宽）。
 
-`contain` 完整显示图片并允许留白；`cover` 使用 `crop_left/right/top/bottom` 做中心裁剪。两种模式都通过 Pillow 读取原始尺寸并保持纵横比，不做非等比拉伸。
+`image` 版式的 `contain` 完整显示图片并允许留白；`cover` 使用 `crop_left/right/top/bottom` 做中心裁剪。两种模式都通过 Pillow 读取原始尺寸并保持纵横比，不做非等比拉伸。`content.inline_image` 按指定 `width`（英寸）等比缩放，`align` 控制贴左/右，正文自动缩到剩余宽度。
 
 ## 模板
 
@@ -240,7 +240,7 @@ pytest
 - 不保证 SVG 跨 WPS 版本表现，建议先转 PNG。
 - 自动排版以稳定安全区为目标；极长文字只给 warning，仍需在 WPS 中人工微调。
 - `notes` 字段会被解析并保留在 IR 中，当前版本尚未写入 PPTX 讲者备注。
-- `equation` 仅做最小化 LaTeX 文本渲染（分数、上下标、符号命令），不调用 LaTeX 引擎，无法渲染复杂排版公式；TikZ 转 SVG 管线为后续规划。
+- `equation` 在系统装有 `pandoc` 时把 LaTeX 转成原生 OMML 公式对象（支持矩阵/对齐/根号等完整结构，WPS 可双击编辑），缺失时回退到 Unicode 符号方案；TikZ 转 SVG 管线为后续规划。
 - 自动测试可以验证 OOXML 与 `python-pptx` 兼容性，但 macOS WPS GUI 打开效果必须由用户进行最终人工验收。
 
 ## 项目结构

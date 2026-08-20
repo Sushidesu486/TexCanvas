@@ -61,6 +61,16 @@ def validate_deck(deck: Deck) -> None:
                     raise ValidationError(f"{slide_location}: conclusion requires takeaway or bullets")
             elif slide.kind is SlideKind.REFERENCES and not slide.items:
                 raise ValidationError(f"{slide_location}.items: at least one reference is required")
+            if slide.inline_image is not None:
+                if not slide.inline_image.path:
+                    raise ValidationError(f"{slide_location}.inline_image.path: is required")
+                if slide.inline_image.align not in {"left", "right"}:
+                    raise ValidationError(
+                        f"{slide_location}.inline_image.align: unsupported value {slide.inline_image.align!r}; "
+                        f"expected 'left' or 'right'"
+                    )
+                if slide.inline_image.width <= 0:
+                    raise ValidationError(f"{slide_location}.inline_image.width: must be positive")
 
 
 def content_warnings(deck: Deck) -> list[str]:

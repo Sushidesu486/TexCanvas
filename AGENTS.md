@@ -116,7 +116,9 @@ sections:                        # 至少一个 section
 | `conclusion` | `takeaway` 或 `bullets` | `takeaway`, `bullets`, `title` |
 | `references` | `items`（非空） | `title` |
 
-所有 slide 都可写 `title`（frame title，显示在顶部）和 `notes`（保留在 IR，**当前版本尚未写入 PPTX 讲者备注**）。
+所有 slide 都可写 `title`（frame title，显示在顶部）、`notes`（保留在 IR，**当前版本尚未写入 PPTX 讲者备注**）、`citation`（可选页底灰色引用条，见 3.3）。
+
+> **公式新能力**：`equation` 版式在系统装有 `pandoc` 时会把 LaTeX 转成原生 OMML 公式对象（支持矩阵/对齐/根号等完整结构），缺失时回退 Unicode 方案。详见 3.8。
 
 ### 3.1 `title` — 封面页
 
@@ -150,9 +152,14 @@ sections:                        # 至少一个 section
   bullets:
     - 现象为什么发生？
     - 哪些变量影响结果？
+  citation: "[1] Doe et al., NeurIPS 2024."   # 可选：页底灰色引用条
+  inline_image:                                # 可选：内联小图，文字环绕
+    path: assets/fig.png
+    width: 3.0       # 英寸
+    align: right     # left | right
 ```
 
-`body` 和 `bullets` 至少有一项。
+`body` 和 `bullets` 至少有一项。`citation` 在页底绘制一条灰色小字（9pt，`DSH_CITATION`），适合标注图表出处/引用。`inline_image` 把图片贴在内容区一侧，正文/ bullets 自动缩到剩余宽度形成环绕；`align: right` 图在右、文字在左，`align: left` 反之；仅支持 PNG/JPEG，路径规则同 `image` 版式（相对 `--asset-root`）。
 
 ### 3.4 `two_columns` — 双栏
 
@@ -230,16 +237,20 @@ sections:                        # 至少一个 section
   equation: "L = -\\frac{1}{N}\\sum_{i=1}^{N} y_i \\log p_i"
 ```
 
-> ⚠️ YAML 里反斜杠需转义：写 `\\frac`，或用 `equation: |` 块标量。
+> ⚠️ YAML 里反斜杠需转义：写 `\\frac`，或用 `equation: |` 块标量（推荐，反斜杠不用双写）。
 
-**支持的标记**（不调用 LaTeX 引擎，纯文本渲染）：
-- 分数：`\frac{a}{b}`
-- 上下标：`^{...}` / `_{...}`
-- 符号命令：希腊字母（`\alpha` `\beta` `\sum` `\prod` `\int` `\partial` `\nabla` `\infty` `\cdot` `\times` `\pm` `\leq` `\geq` `\neq` `\approx` `\rightarrow` `\Rightarrow` `\in` `\subset` `\cup` `\cap` `\forall` `\exists` 等，大小写希腊字母均支持）
-- 函数名：`\log` `\ln` `\sin` `\cos` `\tan` `\lim` `\max` `\min` `\exp` `\det` 等（直立字体渲染）
-- `\sqrt` 渲染为 √ 符号
+**渲染方式**：当系统装有 `pandoc` 时，equation 文本被转成**原生 OMML 公式对象**（`<m:oMath>`），WPS/PowerPoint 中可双击编辑，支持完整的 LaTeX 数学结构。`pandoc` 不存在时回退到 Unicode 符号方案（覆盖面有限）。公式 run 的字体（Latin Helvetica / 东亚 苹方-简）会被显式写入 `m:rPr`，不依赖主题数学字体。
 
-居中呈现于直角面板，字体 Helvetica。**不能**渲染矩阵、对齐环境、复杂多行排版；这类需求需在 WPS 中人工处理。
+**pandoc 在场时支持**（原生 OMML）：
+- 分数 `\frac{a}{b}`、上下标 `^{...}`/`_{...}`、根号 `\sqrt{...}`、`n` 次根 `\sqrt[n]{...}`
+- 大型算子 `\sum` `\prod` `\int` `\lim` 及其上下限
+- 矩阵 `\begin{pmatrix}...\end{pmatrix}` / `bmatrix` / `vmatrix`
+- 对齐环境 `\begin{aligned}...\end{aligned}`
+- 希腊字母、`\det` `\log` `\sin` 等函数名、`\mathbf` `\mathcal` 等字体命令
+
+**pandoc 缺失时回退**（Unicode 方案，仅覆盖）：分数（`a⁄b` 拼接）、上下标、`\sum`/`\alpha` 等符号命令、函数名。**不能**做矩阵/对齐/根号下嵌套。
+
+建议本机 `brew install pandoc` 以获得完整公式能力。居中呈现于直角面板。
 
 ### 3.9 `block` — Beamer 风格块
 

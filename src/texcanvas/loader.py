@@ -15,6 +15,7 @@ from .model import (
     Column,
     Deck,
     ImageSpec,
+    InlineImage,
     Metadata,
     Section,
     Slide,
@@ -134,6 +135,15 @@ def _slide(value: Any, location: str) -> Slide:
     if "equation" in raw and raw["equation"] is not None:
         equation = _text(raw["equation"], f"{location}.equation")
 
+    inline_image = None
+    if "inline_image" in raw and raw["inline_image"] is not None:
+        ii_raw = _mapping(raw["inline_image"], f"{location}.inline_image")
+        inline_image = InlineImage(
+            path=_text(ii_raw.get("path"), f"{location}.inline_image.path"),
+            width=float(ii_raw.get("width", 3.0)),
+            align=_text(ii_raw.get("align", "right"), f"{location}.inline_image.align", required=True),
+        )
+
     return Slide(
         kind=kind,
         title=_text(raw.get("title"), f"{location}.title"),
@@ -150,6 +160,8 @@ def _slide(value: Any, location: str) -> Slide:
         items=_text_tuple(raw.get("items"), f"{location}.items"),
         notes=_text(raw.get("notes"), f"{location}.notes"),
         equation=equation,
+        citation=_text(raw.get("citation"), f"{location}.citation"),
+        inline_image=inline_image,
     )
 
 

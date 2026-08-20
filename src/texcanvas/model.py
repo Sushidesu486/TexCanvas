@@ -70,6 +70,17 @@ class ImageSpec:
 
 
 @dataclass(frozen=True)
+class InlineImage:
+    """A small image placed inline within a content body, with text flowing
+    beside it. ``align`` is ``left`` (image on the left, text wraps right) or
+    ``right`` (image on the right, text wraps left).
+    """
+    path: str
+    width: float = 3.0
+    align: str = "right"
+
+
+@dataclass(frozen=True)
 class Slide:
     kind: SlideKind
     title: str = ""
@@ -86,6 +97,8 @@ class Slide:
     takeaway: str = ""
     items: tuple[str, ...] = ()
     notes: str = ""
+    citation: str = ""
+    inline_image: InlineImage | None = None
 
 
 @dataclass(frozen=True)

@@ -53,6 +53,21 @@ sections:
           fit: contain
         caption: 图 1：实验流程示意图
 
+      - kind: content
+        title: 研究假设
+        citation: "[1] Doe et al., Motivation adapted from JMLR 2024."
+        body: |
+          实验组在多个指标上表现更优，右侧示意图展示了处理流程。
+          文字会自动避开图片区域，形成图文环绕。
+        bullets:
+          - 处理流程包含三个阶段
+          - 对照组保持相同条件
+          - 结果具有可重复性
+        inline_image:
+          path: assets/example-figure.png
+          width: 3.2
+          align: right
+
   - id: results
     title: 实验结果
     short_title: Results
@@ -65,7 +80,13 @@ sections:
 
       - kind: equation
         title: 损失函数
+        citation: "[2] Bishop, Pattern Recognition, Eq. (2.14)."
         equation: "L = -\\frac{1}{N}\\sum_{i=1}^{N} y_i \\log p_i"
+
+      - kind: equation
+        title: 矩阵形式
+        equation: |
+          \mathbf{A} = \begin{pmatrix} a_{11} & a_{12} \\ a_{21} & a_{22} \end{pmatrix}, \quad \det \mathbf{A} = a_{11}a_{22} - a_{12}a_{21}
 
       - kind: table
         title: 方法对比

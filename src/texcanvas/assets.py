@@ -45,6 +45,14 @@ def validate_assets(deck: Deck, asset_root: Path, strict: bool) -> list[str]:
     for section_index, section in enumerate(deck.sections):
         for slide_index, slide in enumerate(section.slides):
             if slide.kind is not SlideKind.IMAGE or slide.image is None:
+                if slide.inline_image is not None:
+                    location = f"sections[{section_index}].slides[{slide_index}].inline_image.path"
+                    try:
+                        inspect_image(resolve_asset(slide.inline_image.path, asset_root), location)
+                    except AssetError as exc:
+                        if strict:
+                            raise
+                        warnings.append(str(exc))
                 continue
             location = f"sections[{section_index}].slides[{slide_index}].image.path"
             try:

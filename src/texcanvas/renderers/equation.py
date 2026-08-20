@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 
+from lxml import etree
 from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
+from ..mathml import latex_to_omml
 from ..model import Slide
 from .common import RenderContext, add_box, set_run_font
 
@@ -175,4 +178,45 @@ def render_equation(ctx: RenderContext, slide: Slide) -> None:
         paragraph.line_spacing = 1.2
         paragraph.space_after = Pt(8)
         paragraph.text = ""
-        _render_inline(line, paragraph, latin=ctx.theme.latin_font, ea=ctx.theme.chinese_font, size=size, text_color=ctx.theme.primary)
+        if not _render_omml_line(paragraph, line, latin=ctx.theme.latin_font, ea=ctx.theme.chinese_font):
+            _render_inline(line, paragraph, latin=ctx.theme.latin_font, ea=ctx.theme.chinese_font, size=size, text_color=ctx.theme.primary)
+
+
+def _render_omml_line(paragraph, latex: str, *, latin: str, ea: str) -> bool:
+    """Try to render the line as a native OMML equation.
+
+    Returns True when a pandoc-generated ``<m:oMath>`` was appended; False when
+    pandoc is unavailable or the line is not a LaTeX equation, in which case
+    the caller should fall back to the legacy Unicode renderer.
+
+    ``latin``/``ea`` are applied to the math runs' ``<m:rPr>`` so the equation
+    honors the deck's font rules (Latin Helvetica, East-Asian 苹方-简) the same
+    way ordinary text runs do.
+    """
+    omath = latex_to_omml(latex)
+    if omath is None:
+        return False
+    _apply_fonts_to_math(omath, latin=latin, ea=ea)
+    paragraph._p.append(deepcopy(omath))
+    return True
+
+
+def _apply_fonts_to_math(omath, *, latin: str, ea: str) -> None:
+    """Stamp ``a:latin``/``a:ea``/``a:cs`` into every ``<m:rPr>`` (or create one).
+
+    Without this, PowerPoint/WPS fall back to the theme math font (Cambria Math)
+    for Latin and the theme East-Asian font for CJK glyphs inside the equation.
+    """
+    MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    for run in omath.iter("{%s}r" % MATH_NS):
+        rPr = run.find("{%s}rPr" % MATH_NS)
+        if rPr is None:
+            rPr = etree.SubElement(run, "{%s}rPr" % MATH_NS)
+            # rPr must precede the <m:t> child per the schema ordering.
+            run.insert(0, rPr)
+        for tag, typeface in (("a:latin", latin), ("a:ea", ea), ("a:cs", ea)):
+            existing = rPr.find("{%s}%s" % (A_NS, tag.split(":")[1]))
+            if existing is None:
+                existing = etree.SubElement(rPr, "{%s}%s" % (A_NS, tag.split(":")[1]))
+            existing.set("typeface", typeface)

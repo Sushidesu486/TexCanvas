@@ -115,21 +115,51 @@ def test_table_renders_grid_and_header(primitives_deck, tmp_path: Path):
     assert _shape(slide, "DSH_CAPTION").text == "Table 1"
 
 
-def test_equation_renders_fraction_and_scripts(primitives_deck, tmp_path: Path):
+def test_equation_renders_omml_when_pandoc_available(primitives_deck, tmp_path: Path):
     source, asset_root = primitives_deck
     output = tmp_path / "eq.pptx"
     build(source, output, asset_root=asset_root)
     prs = Presentation(output)
     slide = prs.slides[2]
     body = _shape(slide, "DSH_EQUATION")
-    runs = body.text_frame.paragraphs[0].runs
-    texts = [run.text for run in runs]
-    # fraction slash renders, sigma renders, superscript + subscript baselines applied
-    assert "⁄" in texts  # fraction slash
-    assert "∑" in texts  # sigma
-    has_sup = any(run.font._rPr.get("baseline") == "30000" for run in runs if run.font._rPr is not None)
-    has_sub = any(run.font._rPr.get("baseline") == "-25000" for run in runs if run.font._rPr is not None)
-    assert has_sup and has_sub
+    # With pandoc installed, the equation renders as a native <m:oMath> element.
+    MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    omaths = list(body.text_frame._txBody.iter("{%s}oMath" % MATH_NS))
+    assert len(omaths) == 1
+    # Structure: a fraction (m:f) and an n-ary sum (m:nary) with a subscript (m:sSub).
+    tags = {__import__("lxml").etree.QName(node).localname for node in omaths[0].iter() if __import__("lxml").etree.QName(node).namespace == MATH_NS}
+    assert "f" in tags       # \frac{1}{N}
+    assert "nary" in tags    # \sum
+    assert "sSub" in tags    # y_i
+
+
+@pytest.mark.skipif(__import__("shutil").which("pandoc") is None, reason="pandoc not installed")
+def test_equation_matrix_renders_as_omml(tmp_path: Path):
+    source = tmp_path / "matrix.yml"
+    source.write_text(
+        r"""
+metadata: {title: Matrix}
+sections:
+  - id: m
+    title: M
+    short_title: M
+    slides:
+      - kind: equation
+        title: Matrix
+        equation: |
+          \begin{pmatrix} a & b \\ c & d \end{pmatrix}
+""".strip(),
+        encoding="utf-8",
+    )
+    output = tmp_path / "matrix.pptx"
+    build(source, output, asset_root=tmp_path)
+    prs = Presentation(output)
+    body = _shape(prs.slides[0], "DSH_EQUATION")
+    MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    omaths = list(body.text_frame._txBody.iter("{%s}oMath" % MATH_NS))
+    assert len(omaths) == 1
+    tags = {__import__("lxml").etree.QName(node).localname for node in omaths[0].iter() if __import__("lxml").etree.QName(node).namespace == MATH_NS}
+    assert "d" in tags and "m" in tags  # delimiter (pmatrix) + matrix
 
 
 def test_blocks_render_panel_and_title_for_each_style(primitives_deck, tmp_path: Path):

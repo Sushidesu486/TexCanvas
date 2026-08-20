@@ -71,6 +71,30 @@ def _draw_title(ctx: RenderContext, slide: Slide) -> None:
     add_box(ctx, "DSH_TITLE_RULE", 0.68, 1.29, ctx.slide_width - 1.36, 0.025, fill=ctx.theme.pale)
 
 
+def _draw_citation(ctx: RenderContext, slide: Slide) -> None:
+    """A thin grey citation strip pinned to the bottom of the slide.
+
+    Rendered above the footer rule so it reads as part of the slide chrome.
+    Only drawn when the slide declares a ``citation`` string.
+    """
+    if not slide.citation:
+        return
+    y = ctx.slide_height - 0.66
+    add_text(
+        ctx,
+        "DSH_CITATION",
+        slide.citation,
+        0.68,
+        y,
+        ctx.slide_width - 1.36,
+        0.22,
+        size=9,
+        text_color=ctx.theme.muted,
+        align=PP_ALIGN.LEFT,
+        margin=0,
+    )
+
+
 def _draw_footer(ctx: RenderContext) -> None:
     y = ctx.slide_height - 0.42
     add_box(ctx, "DSH_FOOTER_RULE", 0.45, y - 0.09, ctx.slide_width - 0.9, 0.025, fill=ctx.theme.secondary)
@@ -113,5 +137,6 @@ def render_chrome(ctx: RenderContext, slide: Slide) -> None:
         return
     _draw_navigation(ctx)
     _draw_title(ctx, slide)
+    _draw_citation(ctx, slide)
     _draw_footer(ctx)
 
