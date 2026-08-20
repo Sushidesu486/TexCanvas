@@ -12,6 +12,9 @@ from ..mathml import latex_to_omml
 from ..model import Slide
 from .common import RenderContext, add_box, set_run_font
 
+MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+
 
 # Unicode replacements for common LaTeX math symbols and operators.
 _LATEX_SYMBOLS: dict[str, str] = {
@@ -189,15 +192,23 @@ def _render_omml_line(paragraph, latex: str, *, latin: str, ea: str) -> bool:
     pandoc is unavailable or the line is not a LaTeX equation, in which case
     the caller should fall back to the legacy Unicode renderer.
 
+    The ``oMath`` is wrapped in an ``oMathPara`` (with centered justification)
+    because PowerPoint/WPS render a block-level equation only when it sits
+    inside ``m:oMathPara`` — a bare ``m:oMath`` directly under ``a:p`` is
+    treated as inline math and some renderers show it as empty.
+
     ``latin``/``ea`` are applied to the math runs' ``<m:rPr>`` so the equation
-    honors the deck's font rules (Latin Helvetica, East-Asian 苹方-简) the same
-    way ordinary text runs do.
+    honors the deck's font rules (Latin Helvetica, East-Asian 苹方-简).
     """
     omath = latex_to_omml(latex)
     if omath is None:
         return False
     _apply_fonts_to_math(omath, latin=latin, ea=ea)
-    paragraph._p.append(deepcopy(omath))
+    oMathPara = etree.SubElement(paragraph._p, "{%s}oMathPara" % MATH_NS)
+    oMathParaPr = etree.SubElement(oMathPara, "{%s}oMathParaPr" % MATH_NS)
+    jc = etree.SubElement(oMathParaPr, "{%s}jc" % MATH_NS)
+    jc.set("{%s}val" % MATH_NS, "center")
+    oMathPara.append(deepcopy(omath))
     return True
 
 
@@ -207,8 +218,6 @@ def _apply_fonts_to_math(omath, *, latin: str, ea: str) -> None:
     Without this, PowerPoint/WPS fall back to the theme math font (Cambria Math)
     for Latin and the theme East-Asian font for CJK glyphs inside the equation.
     """
-    MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-    A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
     for run in omath.iter("{%s}r" % MATH_NS):
         rPr = run.find("{%s}rPr" % MATH_NS)
         if rPr is None:

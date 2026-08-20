@@ -14,6 +14,25 @@ source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
+### 可选：安装 pandoc（获得完整数学公式能力）
+
+`equation` 版式在系统装有 [pandoc](https://pandoc.org/) 时，会把 LaTeX 公式转成**原生可编辑的 OMML 公式对象**（支持矩阵 `\begin{pmatrix}`、对齐 `\begin{aligned}`、嵌套根号 `\sqrt{\frac{a}{b}}`、求和上下限等完整结构，WPS/PowerPoint 中可双击编辑）。pandoc 缺失时回退到 Unicode 符号方案，仅覆盖分数、上下标、希腊字母等基础标记。
+
+```bash
+brew install pandoc          # macOS (Homebrew)
+# 或 sudo apt install pandoc # Debian/Ubuntu
+# 或参见 https://pandoc.org/installing.html
+```
+
+验证：
+
+```bash
+pandoc --version              # 任意较新版本均可
+texcanvas build deck.yml -o out.pptx
+```
+
+> pandoc 是一个独立二进制工具，不作为 Python 依赖安装；texcanvas 在运行时通过子进程调用它。`pip install` 不会自动装 pandoc。
+
 ## 快速开始
 
 最简单的方式是用脚手架一键创建一个 deck 项目：

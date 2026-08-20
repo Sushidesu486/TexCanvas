@@ -250,7 +250,7 @@ sections:                        # 至少一个 section
 
 **pandoc 缺失时回退**（Unicode 方案，仅覆盖）：分数（`a⁄b` 拼接）、上下标、`\sum`/`\alpha` 等符号命令、函数名。**不能**做矩阵/对齐/根号下嵌套。
 
-建议本机 `brew install pandoc` 以获得完整公式能力。居中呈现于直角面板。
+建议本机 `brew install pandoc`（macOS）/ `apt install pandoc`（Linux）以获得完整公式能力。pandoc 是独立二进制，不是 Python 包，运行时由 texcanvas 子进程调用。居中呈现于直角面板。
 
 ### 3.9 `block` — Beamer 风格块
 

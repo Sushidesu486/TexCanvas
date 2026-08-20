@@ -57,7 +57,9 @@ equation / block / conclusion / references
 - two_columns 必须同时提供非空 left 和 right
 - image 仅支持 PNG/JPEG，路径相对 --asset-root（默认 deck.yml 所在目录）
 - code.lang 支持 python/c/cpp/java/javascript/rust/go
-- equation 是最小化 LaTeX（\\frac、^{}、_{}、符号命令），不调用 LaTeX 引擎
+- equation 用 LaTeX 写（\\frac、^{}、_{}、\\begin{pmatrix} 等）。系统装了 pandoc
+  时渲染为原生可编辑公式；没装则回退 Unicode，矩阵/对齐等做不了。
+  安装：brew install pandoc（macOS）/ apt install pandoc（Linux）
 
 ## 常见错误
 
