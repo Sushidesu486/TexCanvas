@@ -1,0 +1,78 @@
+metadata:
+  title: 科研训练汇报
+  subtitle: A Beamer-style editable presentation
+  author: 张三
+  institute: Zhejiang University
+  date: 2026-03-22
+  short_title: Research Training
+
+aspect: "16:9"
+
+sections:
+  - id: background
+    title: 研究背景
+    short_title: Background
+    slides:
+      - kind: section_divider
+        title: 研究背景
+        subtitle: Motivation and research question
+
+      - kind: content
+        title: 科学问题
+        body: 本研究希望回答以下问题。
+        bullets:
+          - 现象为什么发生？
+          - 哪些变量影响结果？
+          - 一个简单模型能否解释该现象？
+
+  - id: methods
+    title: 研究方法
+    short_title: Methods
+    slides:
+      - kind: two_columns
+        title: 实验设计
+        left:
+          heading: 实验组
+          bullets:
+            - 三个处理条件
+            - 每组五个重复
+        right:
+          heading: 对照组
+          bullets:
+            - 相同培养条件
+            - 无实验处理
+
+      - kind: image
+        title: 实验流程
+        image:
+          path: assets/example-figure.png
+          fit: contain
+        caption: 图 1：实验流程示意图
+
+  - id: results
+    title: 实验结果
+    short_title: Results
+    slides:
+      - kind: content
+        title: 主要结果
+        bullets:
+          - 实验组指标显著提升
+          - 结果在不同重复中保持一致
+
+  - id: conclusion
+    title: 结论与展望
+    short_title: Conclusion
+    slides:
+      - kind: conclusion
+        title: 结论
+        takeaway: 实验结果支持主要研究假设。
+        bullets:
+          - 方法具有可重复性
+          - 后续需要扩大样本量
+
+      - kind: references
+        title: 参考文献
+        items:
+          - "Doe et al. Example paper. Journal, 2024."
+          - "Smith et al. Another paper. Journal, 2023."
+

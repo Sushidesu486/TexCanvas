@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beamer-pptx"
+version = "0.1.0"
+description = "Generate editable Beamer-style academic PPTX decks from YAML"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "beamer-pptx contributors"}]
+dependencies = [
+  "python-pptx>=1.0",
+  "PyYAML>=6.0",
+  "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+beamer-pptx = "beamer_pptx.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
