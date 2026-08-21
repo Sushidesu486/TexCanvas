@@ -350,7 +350,7 @@ TikZ 图形可独立生成 SVG/PNG，供论文和 PPT 共用：
 texcanvas graphics build examples/figures.yml --asset-root examples -o output/figures
 ```
 
-`figures.yml` 中每个 figure 需要 `id`、`engine`、`source` 和 `outputs`。当前第一版支持 `engine: tikz`，source 是 `tikzpicture` 片段；系统需要 `pdflatex` 和 `pdftocairo`。输出默认不写回 deck YAML，文件位于 `output/figures/<id>.svg` / `.png`。
+`figures.yml` 中每个 figure 需要 `id`、`engine`、`source` 和 `outputs`。当前第一版支持 `engine: tikz`，source 是 `tikzpicture` 片段。默认用 `xelatex -no-pdf` 编译出 XDV → `dvisvgm` 导出**保留可选文本**的矢量 SVG → `xdvipdfmx` + `pdftocairo` 光栅化 PNG；需要 `xelatex`/`dvisvgm`/`xdvipdfmx`（TeX Live/MacTeX）和 `pdftocairo`（Poppler）。可选字段：`compiler: xelatex|lualatex|pdflatex`（`pdflatex` 只产 PDF，无法生成可选文本 SVG，请求 `svg` 输出会报错）、`dpi: 300`（PNG 光栅化分辨率，默认 300，论文线图建议 600）、`preamble: [...]`。输出默认不写回 deck YAML，文件位于 `output/figures/<id>.svg` / `.png`。
 
 ### 常见错误
 
@@ -373,6 +373,7 @@ texcanvas graphics build examples/figures.yml --asset-root examples -o output/fi
 ## 8. 代码维护（扩展时再看）
 
 - **架构**：`loader.py`（YAML → frozen IR `Deck/Section/Slide/...`）→ `validate.py`（schema 校验 + warning）→ `render.py`（调度）→ `renderers/`（共享 `chrome.py` + 各版式 renderer）；`graphics.py` 负责独立的论文/PPT 图形 backend。IR 不含任何 `python-pptx` 对象。
+- **图形管线**（`graphics.py`）：`xelatex -no-pdf` 产 XDV → `dvisvgm --exact-bbox --font-format=woff2` 产可选文本 SVG → `xdvipdfmx` 产 PDF → `pdftocairo` 产 PNG。关键不变量：**SVG 必须保留 `<text>` 元素**（不能走 `pdftocairo -svg`，那会把字形全转 `<path>`，文本不可选不可搜索）；因此 SVG 输出只允许 DVI-capable 编译器（`xelatex`/`lualatex`），`pdflatex` 请求 `svg` 必须在 `_build_figure` 早失败。PNG 的 `dpi` 默认 300，由 `FigureSpec.dpi` 透传到 `pdftocairo -r`。
 - **加新 slide kind**：① `model.py` 的 `SlideKind` 加成员 + 必要的 spec dataclass；② `loader.py._slide` 解析字段；③ `validate.py.validate_deck` 加校验分支、`content_warnings` 加阈值；④ `renderers/<kind>.py` 写 `render_<kind>(ctx, slide)`；⑤ `renderers/__init__.py` 导出；⑥ `render.py` 的 `RENDERERS` dict 注册；⑦ 补测试。
 - **字体不变量**：所有 run 必须经 `set_run_font(run, *, latin, ea)`（`renderers/common.py`），它同时写 `a:latin`+`a:ea`+`a:cs`。不要用裸 `run.font.name = ...`（只写 `a:latin`，CJK 会掉字体）。
 - **面板形状不变量**：内容面板用 `MSO_AUTO_SHAPE_TYPE.RECTANGLE`（`radius=False`），不要改回圆角。

@@ -16,7 +16,14 @@ from .errors import InputError, RenderError, ValidationError
 
 SUPPORTED_ENGINES = {"tikz"}
 SUPPORTED_OUTPUTS = {"svg", "png"}
-COMPILERS = {"pdflatex", "lualatex", "xelatex"}
+# xelatex/lualatex emit DVI/XDV via ``-no-pdf``, letting dvisvgm produce vector
+# SVG with selectable text.  pdflatex only emits PDF, so its SVG export degrades
+# to flattened outlines via pdftocairo.
+COMPILERS = {"xelatex", "lualatex", "pdflatex"}
+DEFAULT_COMPILER = "xelatex"
+# Compilers that can emit DVI/XDV (vector-SVG capable).
+DVI_CAPABLE_COMPILERS = {"xelatex", "lualatex"}
+DEFAULT_DPI = 300
 
 
 @dataclass(frozen=True)
@@ -26,7 +33,8 @@ class FigureSpec:
     source: Path
     outputs: tuple[str, ...]
     preamble: tuple[str, ...] = ()
-    compiler: str = "pdflatex"
+    compiler: str = DEFAULT_COMPILER
+    dpi: int = DEFAULT_DPI
 
 
 @dataclass(frozen=True)
@@ -89,29 +97,76 @@ def load_figures(path: str | Path, asset_root: Path | None = None) -> tuple[Figu
             raise InputError(f"{location}.source: file not found: {source_path}")
         outputs = _outputs(value.get("outputs", ("svg", "png")), location)
         preamble = _preamble(value.get("preamble", ()), location)
-        compiler = str(value.get("compiler", "pdflatex"))
+        compiler = str(value.get("compiler", DEFAULT_COMPILER))
         if compiler not in COMPILERS:
             raise ValidationError(f"{location}.compiler: unsupported compiler {compiler!r}")
-        specs.append(FigureSpec(figure_id, engine, source_path, outputs, preamble, compiler))
+        dpi = _dpi(value.get("dpi", DEFAULT_DPI), location)
+        specs.append(FigureSpec(figure_id, engine, source_path, outputs, preamble, compiler, dpi))
     return tuple(specs)
 
 
 def _build_figure(spec: FigureSpec, output_dir: Path) -> list[Path]:
-    compiler_path = shutil.which(spec.compiler)
-    pdftocairo_path = shutil.which("pdftocairo") if ("svg" in spec.outputs or "png" in spec.outputs) else None
-    if compiler_path is None:
-        raise RenderError(f"figure {spec.id}: {spec.compiler} is not installed")
-    if ("svg" in spec.outputs or "png" in spec.outputs) and pdftocairo_path is None:
-        raise RenderError(f"figure {spec.id}: pdftocairo is required for SVG/PNG output")
+    needs_svg = "svg" in spec.outputs
+    needs_png = "png" in spec.outputs
+    # SVG needs a DVI/XDV so dvisvgm can emit selectable text.  PDF-only
+    # compilers (pdflatex) would force a flattened-outline fallback.
+    if needs_svg and spec.compiler not in DVI_CAPABLE_COMPILERS:
+        capable = ", ".join(sorted(DVI_CAPABLE_COMPILERS))
+        raise RenderError(
+            f"figure {spec.id}: compiler {spec.compiler!r} cannot emit DVI/XDV; "
+            f"use one of {capable} for svg output"
+        )
+
+    dvisvgm_path = shutil.which("dvisvgm") if needs_svg else None
+    pdftocairo_path = shutil.which("pdftocairo") if needs_png else None
+    if needs_svg and dvisvgm_path is None:
+        raise RenderError(f"figure {spec.id}: dvisvgm is required for svg output")
+    if needs_png and pdftocairo_path is None:
+        raise RenderError(f"figure {spec.id}: pdftocairo is required for png output")
 
     source = spec.source.read_text(encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix=f"texcanvas-{spec.id}-") as temp_dir:
         temp = Path(temp_dir)
         tex_path = temp / f"{spec.id}.tex"
-        pdf_path = temp / f"{spec.id}.pdf"
         tex_path.write_text(_tikz_document(source, spec.preamble), encoding="utf-8")
+
+        vector_path, pdf_path = _compile(spec, tex_path, temp, needs_svg, needs_png)
+
+        generated: list[Path] = []
+        if needs_svg:
+            target = output_dir / f"{spec.id}.svg"
+            _run_export(
+                [dvisvgm_path, "--exact-bbox", "--font-format=woff2", str(vector_path), "-o", str(target)],
+                target,
+                spec.id,
+                "SVG",
+            )
+            generated.append(target)
+        if needs_png:
+            target = output_dir / f"{spec.id}.png"
+            prefix = target.with_suffix("")
+            _run_export(
+                [pdftocairo_path, "-png", "-singlefile", "-r", str(spec.dpi), str(pdf_path), str(prefix)],
+                target,
+                spec.id,
+                "PNG",
+            )
+            generated.append(target)
+        return generated
+
+
+def _compile(spec: FigureSpec, tex_path: Path, temp: Path, needs_vector: bool, needs_pdf: bool) -> tuple[Path | None, Path | None]:
+    """Compile ``tex_path`` into the DVI/XDV and PDF artifacts required.
+
+    DVI-capable compilers (xelatex/lualatex) are run with ``-no-pdf`` to emit a
+    vector file, then ``xdvipdfmx`` produces the PDF for PNG rasterization.
+    pdflatex emits a PDF directly (no selectable-text SVG available).
+    """
+    if spec.compiler in DVI_CAPABLE_COMPILERS:
+        vector_path = temp / f"{spec.id}.xdv"
         command = [
-            compiler_path,
+            spec.compiler,
+            "-no-pdf",
             "-interaction=nonstopmode",
             "-halt-on-error",
             "-file-line-error",
@@ -119,37 +174,55 @@ def _build_figure(spec: FigureSpec, output_dir: Path) -> list[Path]:
             str(temp),
             str(tex_path),
         ]
-        completed = subprocess.run(
-            command,
-            cwd=spec.source.parent,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        if completed.returncode != 0 or not pdf_path.is_file():
-            detail = _tail(completed.stdout)
-            raise RenderError(f"figure {spec.id}: {spec.compiler} failed\n{detail}")
+        completed = _run_compiler(command, spec.source.parent)
+        if completed.returncode != 0 or not vector_path.is_file():
+            raise RenderError(f"figure {spec.id}: {spec.compiler} failed\n{_tail(completed.stdout)}")
+        pdf_path = None
+        if needs_pdf:
+            pdf_path = temp / f"{spec.id}.pdf"
+            _produce_pdf_from_xdv(vector_path, pdf_path, spec.id)
+        return vector_path, pdf_path
 
-        generated: list[Path] = []
-        for output_kind in spec.outputs:
-            target = output_dir / f"{spec.id}.{output_kind}"
-            if output_kind == "svg":
-                _run_export(
-                    [pdftocairo_path, "-svg", str(pdf_path), str(target)],
-                    target,
-                    spec.id,
-                    "SVG",
-                )
-            else:
-                prefix = target.with_suffix("")
-                _run_export(
-                    [pdftocairo_path, "-png", "-singlefile", "-r", "300", str(pdf_path), str(prefix)],
-                    target,
-                    spec.id,
-                    "PNG",
-                )
-            generated.append(target)
-        return generated
+    # pdflatex: PDF only.
+    pdf_path = temp / f"{spec.id}.pdf"
+    command = [
+        spec.compiler,
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "-file-line-error",
+        "-output-directory",
+        str(temp),
+        str(tex_path),
+    ]
+    completed = _run_compiler(command, spec.source.parent)
+    if completed.returncode != 0 or not pdf_path.is_file():
+        raise RenderError(f"figure {spec.id}: {spec.compiler} failed\n{_tail(completed.stdout)}")
+    return None, pdf_path
+
+
+def _produce_pdf_from_xdv(xdv_path: Path, pdf_path: Path, figure_id: str) -> None:
+    xdvipdfmx_path = shutil.which("xdvipdfmx")
+    if xdvipdfmx_path is None:
+        raise RenderError(f"figure {figure_id}: xdvipdfmx is required to produce pdf from xdv")
+    command = [xdvipdfmx_path, "-o", str(pdf_path), str(xdv_path)]
+    completed = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    if completed.returncode != 0 or not pdf_path.is_file():
+        raise RenderError(f"figure {figure_id}: xdvipdfmx failed\n{_tail(completed.stdout)}")
+
+
+def _run_compiler(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
 
 
 def _tikz_document(source: str, preamble: tuple[str, ...]) -> str:
@@ -208,3 +281,11 @@ def _preamble(value: Any, location: str) -> tuple[str, ...]:
     if not isinstance(value, (list, tuple)):
         raise ValidationError(f"{location}.preamble: expected text or list")
     return tuple(str(item) for item in value)
+
+
+def _dpi(value: Any, location: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValidationError(f"{location}.dpi: expected a positive integer")
+    if value <= 0:
+        raise ValidationError(f"{location}.dpi: must be positive")
+    return value

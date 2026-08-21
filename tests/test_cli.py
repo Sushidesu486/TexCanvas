@@ -17,8 +17,8 @@ def test_cli_builds_and_prints_summary(deck_files: tuple[Path, Path], tmp_path: 
 
 
 @pytest.mark.skipif(
-    shutil.which("pdflatex") is None or shutil.which("pdftocairo") is None,
-    reason="TikZ toolchain is not installed",
+    shutil.which("xelatex") is None or shutil.which("dvisvgm") is None or shutil.which("pdftocairo") is None,
+    reason="TikZ toolchain (xelatex + dvisvgm + pdftocairo) is not installed",
 )
 def test_cli_graphics_builds_tikz(tmp_path: Path, capsys):
     source = tmp_path / "figure.tikz"

@@ -137,9 +137,10 @@ figures:
     preamble:
       - "\\usetikzlibrary{positioning,arrows.meta}"
     outputs: [svg, png]
+    dpi: 300          # PNG 光栅化分辨率，默认 300；论文线图建议 600
 ```
 
-TikZ 源文件是一个 `tikzpicture` 片段。当前使用 `pdflatex` 编译，再通过 `pdftocairo` 导出 SVG/PNG；需要安装 TeX Live/MacTeX 和 Poppler。SVG 适合论文和支持矢量图的编辑器，PNG 适合作为 PPT/WPS 的兼容 fallback。完整示例见 `examples/figures.yml`。
+TikZ 源文件是一个 `tikzpicture` 片段。默认用 `xelatex -no-pdf` 编译出 XDV，再通过 `dvisvgm` 导出**保留可选文本与嵌入字体子集的矢量 SVG**（适合论文），PNG 经 `xdvipdfmx` + `pdftocairo` 光栅化（适合 PPT/WPS）；需要安装 TeX Live/MacTeX（含 `xelatex`/`dvisvgm`/`xdvipdfmx`）与 Poppler（`pdftocairo`）。可选 `compiler: xelatex|lualatex|pdflatex`，其中 `pdflatex` 只能产 PDF、无法生成可选文本 SVG（会拒绝 `svg` 输出）；`lualatex` 支持需要 `graphdrawing` 自动布局的图。完整示例见 `examples/figures.yml`。
 
 - `input`：YAML deck 描述文件，必填。
 - `-o / --output`：输出 `.pptx` 路径，必填；父目录不存在时会自动创建。
@@ -283,7 +284,8 @@ pytest
 - 不保证 SVG 跨 WPS 版本表现，建议先转 PNG。
 - 自动排版以稳定安全区为目标；极长文字只给 warning，仍需在 WPS 中人工微调。
 - `notes` 字段会被解析并保留在 IR 中，当前版本尚未写入 PPTX 讲者备注。
-- `equation` 在系统装有 `pandoc` 时把 LaTeX 转成原生 OMML 公式对象，再通过 `a14:m` + `mc:AlternateContent` 写入 PowerPoint（支持矩阵/对齐/根号等完整结构，WPS 可双击编辑），缺失时回退到 Unicode 符号方案；TikZ 转 SVG 管线为后续规划。
+- `equation` 在系统装有 `pandoc` 时把 LaTeX 转成原生 OMML 公式对象，再通过 `a14:m` + `mc:AlternateContent` 写入 PowerPoint（支持矩阵/对齐/根号等完整结构，WPS 可双击编辑），缺失时回退到 Unicode 符号方案。
+- TikZ 图形通过 `texcanvas graphics build` 独立生成 SVG/PNG（见上节）。SVG 由 `dvisvgm` 从 DVI/XDV 导出，保留可选文本与嵌入字体子集；PNG 由 `pdftocairo` 光栅化，`dpi` 默认 300（论文线图建议 600）。需要 `xelatex`/`dvisvgm`/`xdvipdfmx`（TeX Live/MacTeX）与 `pdftocairo`（Poppler）；当前仅支持 `tikz` 引擎，其他图形后端（如 pgfplots 数据图）为后续规划。
 - 自动测试可以验证 OOXML 与 `python-pptx` 兼容性，但 macOS WPS GUI 打开效果必须由用户进行最终人工验收。
 
 ## 项目结构
