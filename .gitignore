@@ -9,6 +9,9 @@ output/*.html
 output/figures/
 !output/.gitkeep
 
+# inline figure compile cache (regenerated at build time)
+**/_texcanvas_figures/
+
 # build artifacts (sdist/wheel), reproducible via `python -m build`
 build/
 dist/
