@@ -12,11 +12,12 @@ If pandoc is not installed or fails, callers fall back to the legacy Unicode
 renderer in ``equation.py``, so decks still build (with degraded math).
 
 After python-pptx saves, the injected math elements are serialized with
-synthetic numeric prefixes (``ns0:``, ``ns18:`` ...) and the ``m`` namespace is
-not declared on the slide root — WPS in particular refuses to render math in
-that state. ``normalize_math_namespaces_in_pptx`` rewrites each slide part so
-the ``m`` namespace is declared on the ``p:sld`` root and all math elements use
-the canonical ``m:`` prefix; call it on the saved pptx path.
+synthetic numeric prefixes (``ns0:``, ``ns18:`` ...) and the ``m``/``w``
+namespaces are not declared on the slide root — WPS in particular refuses to
+render math in that state. ``normalize_math_namespaces_in_pptx`` rewrites each
+slide part so the ``m`` and ``w`` namespaces are declared on the ``p:sld`` root
+and all math elements use the canonical ``m:`` prefix; call it on the saved
+pptx path.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from pathlib import Path
 from lxml import etree
 
 MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _OMATH_TAG = "{%s}oMath" % MATH_NS
 _PRESENTATION_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
 
@@ -123,10 +125,13 @@ def _rewrite_slide_xml(data: bytes) -> bytes | None:
     root = etree.fromstring(data)
     if root.tag != "{%s}sld" % _PRESENTATION_NS:
         return None
-    if MATH_NS in root.nsmap.values():
-        # Already declares a binding for the math namespace; nothing to do.
+    if MATH_NS in root.nsmap.values() and WORD_NS in root.nsmap.values():
+        # Already declares bindings for math and WordprocessingML runs.
         return None
-    new_root = etree.Element(root.tag, nsmap={**dict(root.nsmap), "m": MATH_NS})
+    new_root = etree.Element(
+        root.tag,
+        nsmap={**dict(root.nsmap), "m": MATH_NS, "w": WORD_NS},
+    )
     for key, value in root.attrib.items():
         new_root.set(key, value)
     new_root.text = root.text
@@ -148,4 +153,3 @@ def strip_math_namespace_prefixes(element: etree._Element) -> None:
         if node.tag.startswith("{%s}" % MATH_NS):
             local = etree.QName(node).localname
             node.tag = "m:" + local
-

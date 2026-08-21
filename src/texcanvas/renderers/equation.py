@@ -14,6 +14,7 @@ from .common import RenderContext, add_box, set_run_font
 
 MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 
 # Unicode replacements for common LaTeX math symbols and operators.
@@ -197,8 +198,11 @@ def _render_omml_line(paragraph, latex: str, *, latin: str, ea: str) -> bool:
     inside ``m:oMathPara`` — a bare ``m:oMath`` directly under ``a:p`` is
     treated as inline math and some renderers show it as empty.
 
-    ``latin``/``ea`` are applied to the math runs' ``<m:rPr>`` so the equation
-    honors the deck's font rules (Latin Helvetica, East-Asian 苹方-简).
+    Font settings use the WordprocessingML ``<w:rPr>/<w:rFonts>`` child that
+    OMML defines for math runs.  DrawingML ``<a:latin>`` elements are valid for
+    ordinary PowerPoint text runs, but are not valid children of ``<m:rPr>``;
+    placing them there makes otherwise well-formed equations fail to render in
+    WPS/PowerPoint.
     """
     omath = latex_to_omml(latex)
     if omath is None:
@@ -213,19 +217,34 @@ def _render_omml_line(paragraph, latex: str, *, latin: str, ea: str) -> bool:
 
 
 def _apply_fonts_to_math(omath, *, latin: str, ea: str) -> None:
-    """Stamp ``a:latin``/``a:ea``/``a:cs`` into every ``<m:rPr>`` (or create one).
+    """Stamp valid WordprocessingML font properties into every math run.
 
-    Without this, PowerPoint/WPS fall back to the theme math font (Cambria Math)
-    for Latin and the theme East-Asian font for CJK glyphs inside the equation.
+    OMML math runs may carry a WordprocessingML ``w:rPr`` child.  Keep any
+    pandoc-generated math properties in ``m:rPr`` and put the font face in
+    ``w:rPr/w:rFonts``.  In particular, do not put DrawingML ``a:*`` elements
+    inside ``m:rPr``: that violates the OMML content model and causes blank
+    equations in WPS/PowerPoint.
     """
     for run in omath.iter("{%s}r" % MATH_NS):
-        rPr = run.find("{%s}rPr" % MATH_NS)
-        if rPr is None:
-            rPr = etree.SubElement(run, "{%s}rPr" % MATH_NS)
-            # rPr must precede the <m:t> child per the schema ordering.
-            run.insert(0, rPr)
-        for tag, typeface in (("a:latin", latin), ("a:ea", ea), ("a:cs", ea)):
-            existing = rPr.find("{%s}%s" % (A_NS, tag.split(":")[1]))
-            if existing is None:
-                existing = etree.SubElement(rPr, "{%s}%s" % (A_NS, tag.split(":")[1]))
-            existing.set("typeface", typeface)
+        math_rpr = run.find("{%s}rPr" % MATH_NS)
+        if math_rpr is not None:
+            # Remove the invalid representation emitted by older TexCanvas
+            # versions when this helper is used on an already-mutated element.
+            for child in list(math_rpr):
+                if etree.QName(child).namespace == A_NS:
+                    math_rpr.remove(child)
+
+        word_rpr = run.find("{%s}rPr" % W_NS)
+        if word_rpr is None:
+            word_rpr = etree.Element("{%s}rPr" % W_NS)
+            insert_at = 0
+            if math_rpr is not None:
+                insert_at = run.index(math_rpr) + 1
+            run.insert(insert_at, word_rpr)
+
+        fonts = word_rpr.find("{%s}rFonts" % W_NS)
+        if fonts is None:
+            fonts = etree.Element("{%s}rFonts" % W_NS)
+            word_rpr.insert(0, fonts)
+        for attribute, typeface in (("ascii", latin), ("hAnsi", latin), ("eastAsia", ea), ("cs", ea)):
+            fonts.set("{%s}%s" % (W_NS, attribute), typeface)

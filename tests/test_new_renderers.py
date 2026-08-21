@@ -3,11 +3,13 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
+from lxml import etree
 import pytest
 from PIL import Image
 from pptx import Presentation
 
 from texcanvas import build
+from texcanvas.mathml import normalize_math_namespaces_in_pptx
 
 
 def _shape(slide, name):
@@ -131,6 +133,52 @@ def test_equation_renders_omml_when_pandoc_available(primitives_deck, tmp_path: 
     assert "f" in tags       # \frac{1}{N}
     assert "nary" in tags    # \sum
     assert "sSub" in tags    # y_i
+
+
+@pytest.mark.skipif(__import__("shutil").which("pandoc") is None, reason="pandoc not installed")
+def test_equation_math_fonts_use_wordprocessing_run_properties(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "eq-fonts.pptx"
+    build(source, output, asset_root=asset_root)
+    body = _shape(Presentation(output).slides[2], "DSH_EQUATION")
+    math_ns = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    word_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    drawing_ns = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    omath = next(body.text_frame._txBody.iter("{%s}oMath" % math_ns))
+    runs = list(omath.iter("{%s}r" % math_ns))
+    assert runs
+    for run in runs:
+        math_rpr = run.find("{%s}rPr" % math_ns)
+        assert math_rpr is None or not any(child.tag.startswith("{%s}" % drawing_ns) for child in math_rpr)
+        word_rpr = run.find("{%s}rPr" % word_ns)
+        assert word_rpr is not None
+        fonts = word_rpr.find("{%s}rFonts" % word_ns)
+        assert fonts is not None
+        assert fonts.get("{%s}ascii" % word_ns) == "Helvetica"
+        assert fonts.get("{%s}hAnsi" % word_ns) == "Helvetica"
+        assert fonts.get("{%s}eastAsia" % word_ns) == "苹方-简"
+        assert fonts.get("{%s}cs" % word_ns) == "苹方-简"
+
+
+@pytest.mark.skipif(__import__("shutil").which("pandoc") is None, reason="pandoc not installed")
+def test_equation_zip_xml_is_renderable_and_namespace_normalization_is_idempotent(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "eq-xml.pptx"
+    build(source, output, asset_root=asset_root)
+
+    with zipfile.ZipFile(output) as archive:
+        slide_xml = archive.read("ppt/slides/slide3.xml")
+    root = etree.fromstring(slide_xml)
+    math_ns = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    word_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    drawing_ns = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    assert root.nsmap["m"] == math_ns
+    assert root.nsmap["w"] == word_ns
+    omath = root.find(".//{%s}oMath" % math_ns)
+    assert omath is not None
+    for math_rpr in omath.iter("{%s}rPr" % math_ns):
+        assert not any(etree.QName(child).namespace == drawing_ns for child in math_rpr)
+    assert normalize_math_namespaces_in_pptx(output) is False
 
 
 @pytest.mark.skipif(__import__("shutil").which("pandoc") is None, reason="pandoc not installed")

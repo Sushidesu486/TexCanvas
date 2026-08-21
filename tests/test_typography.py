@@ -149,18 +149,21 @@ def test_cjk_runs_use_pingfang_latin_runs_use_helvetica(tmp_path: Path):
     assert code_fonts["ea"] == "苹方-简"
 
     # Equation: Latin font is Helvetica. With pandoc available the equation is a
-    # native <m:oMath> element; check the math runs carry the deck fonts.
+    # native <m:oMath> element; check the math runs use schema-valid
+    # WordprocessingML font properties (not DrawingML children under m:rPr).
     eq = _shape(prs.slides[3], "DSH_EQUATION")
     MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-    A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
     omaths = list(eq.text_frame._txBody.iter("{%s}oMath" % MATH_NS))
     assert omaths, "expected a native OMML equation when pandoc is available"
     run = next(omaths[0].iter("{%s}r" % MATH_NS))
-    rPr = run.find("{%s}rPr" % MATH_NS)
-    latin = rPr.find("{%s}latin" % A_NS) if rPr is not None else None
-    ea = rPr.find("{%s}ea" % A_NS) if rPr is not None else None
-    assert latin is not None and latin.get("typeface") == "Helvetica"
-    assert ea is not None and ea.get("typeface") == "苹方-简"
+    word_rPr = run.find("{%s}rPr" % W_NS)
+    fonts = word_rPr.find("{%s}rFonts" % W_NS) if word_rPr is not None else None
+    assert fonts is not None
+    assert fonts.get("{%s}ascii" % W_NS) == "Helvetica"
+    assert fonts.get("{%s}hAnsi" % W_NS) == "Helvetica"
+    assert fonts.get("{%s}eastAsia" % W_NS) == "苹方-简"
+    assert fonts.get("{%s}cs" % W_NS) == "苹方-简"
 
 
 _SQUARE_DECK = """
