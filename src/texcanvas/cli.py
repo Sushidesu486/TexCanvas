@@ -7,7 +7,6 @@ from pathlib import Path
 from .build import build
 from .errors import TexCanvasError
 from .scaffold import init_project
-from .sync import pull
 
 
 def _build_parser() -> tuple[argparse.ArgumentParser, argparse._SubParsersAction]:
@@ -73,11 +72,6 @@ def _add_build_parser(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="打印每条 warning 的详细信息",
     )
-    build_p.add_argument(
-        "--overrides",
-        type=Path,
-        help="可选的人类 PPTX 微调覆盖文件（由 sync pull 生成）",
-    )
 
 
 def _add_init_parser(sub: argparse._SubParsersAction) -> None:
@@ -97,24 +91,10 @@ def _add_init_parser(sub: argparse._SubParsersAction) -> None:
     )
 
 
-def _add_sync_parser(sub: argparse._SubParsersAction) -> None:
-    sync_p = sub.add_parser("sync", help="在 YAML 与人工编辑后的 PPTX 之间同步覆盖层")
-    sync_sub = sync_p.add_subparsers(dest="sync_command", required=True, metavar="<sync-command>")
-    pull_p = sync_sub.add_parser("pull", help="从人工编辑后的 PPTX 提取 overrides.yml")
-    pull_p.add_argument("input", type=Path, help="人工编辑后的 PPTX 文件")
-    pull_p.add_argument("-o", "--output", type=Path, required=True, help="覆盖层 YAML 输出路径")
-    pull_p.add_argument(
-        "--asset-dir",
-        type=Path,
-        help="提取新增图片的目录；默认为 <overrides-name>-assets",
-    )
-
-
 def parser() -> argparse.ArgumentParser:
     root, sub = _build_parser()
     _add_build_parser(sub)
     _add_init_parser(sub)
-    _add_sync_parser(sub)
     return root
 
 
@@ -126,7 +106,6 @@ def _run_build(args: argparse.Namespace) -> int:
             template=args.template,
             strict=args.strict,
             asset_root=args.asset_root,
-            overrides=args.overrides,
         )
     except TexCanvasError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -154,26 +133,11 @@ def _run_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_sync_pull(args: argparse.Namespace) -> int:
-    try:
-        report = pull(args.input, args.output, asset_dir=args.asset_dir)
-    except TexCanvasError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 2
-    print(f"Wrote {report.output}")
-    print(f"Slides: {report.slide_count}")
-    print(f"Shapes: {report.shape_count}")
-    print(f"Extracted images: {report.extracted_image_count}")
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "build":
         return _run_build(args)
     if args.command == "init":
         return _run_init(args)
-    if args.command == "sync" and args.sync_command == "pull":
-        return _run_sync_pull(args)
     # argparse enforces required subcommand; unreachable.
     return 2

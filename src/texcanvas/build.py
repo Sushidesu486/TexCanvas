@@ -14,7 +14,6 @@ from .loader import load_deck
 from .mathml import normalize_math_namespaces_in_pptx
 from .render import render_deck
 from .scaffold import bundled_template_path
-from .sync import apply_overrides
 from .theme import DEFAULT_THEME
 from .validate import content_warnings
 
@@ -54,7 +53,6 @@ def build(
     template: str | Path | None = None,
     strict: bool = True,
     asset_root: str | Path | None = None,
-    overrides: str | Path | None = None,
 ) -> BuildReport:
     input_path = Path(input).expanduser().resolve()
     output_path = Path(output).expanduser().resolve()
@@ -74,8 +72,6 @@ def build(
         warnings=warnings,
         draw_code_background=draw_code_background,
     )
-    if overrides is not None:
-        apply_overrides(prs, overrides)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = output_path.with_name(f".{output_path.name}.{uuid.uuid4().hex}.tmp")
@@ -99,3 +95,4 @@ def build(
         section_count=len(deck.sections),
         warnings=tuple(warnings),
     )
+
