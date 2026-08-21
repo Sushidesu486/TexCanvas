@@ -134,12 +134,16 @@ def _build_figure(spec: FigureSpec, output_dir: Path) -> list[Path]:
     with tempfile.TemporaryDirectory(prefix=f"texcanvas-{spec.id}-") as temp_dir:
         temp = Path(temp_dir)
         tex_path = temp / f"{spec.id}.tex"
-        tex_path.write_text(_tikz_document(source, spec.preamble, spec.engine), encoding="utf-8")
-
-        vector_path, pdf_path = _compile(spec, tex_path, temp, needs_svg, needs_png)
-
+        # SVG needs pgfsys-dvisvgm specials (dvisvgm reads those); PNG needs a PDF
+        # whose driver specials xdvipdfmx/pdftocairo understand.  They cannot share
+        # one compile — pgfsys-dvisvgm.def emits SVG snippets that xdvipdfmx drops,
+        # leaving a blank PNG.  Compile twice when both are requested: once with
+        # the dvisvgm driver for the vector file, once with the compiler's native
+        # driver for the PDF.  The .tex files differ only in the driver line.
         generated: list[Path] = []
         if needs_svg:
+            tex_path.write_text(_tikz_document(source, spec.preamble, spec.engine, svg=True), encoding="utf-8")
+            vector_path = _compile_vector(spec, tex_path, temp)
             target = output_dir / f"{spec.id}.svg"
             _run_export(
                 [dvisvgm_path, "--exact-bbox", "--font-format=woff2", str(vector_path), "-o", str(target)],
@@ -149,6 +153,8 @@ def _build_figure(spec: FigureSpec, output_dir: Path) -> list[Path]:
             )
             generated.append(target)
         if needs_png:
+            tex_path.write_text(_tikz_document(source, spec.preamble, spec.engine, svg=False), encoding="utf-8")
+            pdf_path = _compile_pdf(spec, tex_path, temp)
             target = output_dir / f"{spec.id}.png"
             prefix = target.with_suffix("")
             _run_export(
@@ -161,35 +167,33 @@ def _build_figure(spec: FigureSpec, output_dir: Path) -> list[Path]:
         return generated
 
 
-def _compile(spec: FigureSpec, tex_path: Path, temp: Path, needs_vector: bool, needs_pdf: bool) -> tuple[Path | None, Path | None]:
-    """Compile ``tex_path`` into the DVI/XDV and PDF artifacts required.
+def _compile_vector(spec: FigureSpec, tex_path: Path, temp: Path) -> Path:
+    """Compile with ``-no-pdf`` + the dvisvgm PGF driver → a DVI/XDV for SVG."""
+    vector_path = temp / f"{spec.id}.xdv"
+    command = [
+        spec.compiler,
+        "-no-pdf",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "-file-line-error",
+        "-output-directory",
+        str(temp),
+        str(tex_path),
+    ]
+    completed = _run_compiler(command, spec.source.parent)
+    if completed.returncode != 0 or not vector_path.is_file():
+        raise RenderError(f"figure {spec.id}: {spec.compiler} failed\n{_tail(completed.stdout)}")
+    return vector_path
 
-    DVI-capable compilers (xelatex/lualatex) are run with ``-no-pdf`` to emit a
-    vector file, then ``xdvipdfmx`` produces the PDF for PNG rasterization.
-    pdflatex emits a PDF directly (no selectable-text SVG available).
+
+def _compile_pdf(spec: FigureSpec, tex_path: Path, temp: Path) -> Path:
+    """Compile to PDF using the compiler's native driver (xelatex/lualatex → PDF,
+    pdflatex → PDF) so the renderer's specials survive into the PDF/PNG.
+
+    This deliberately does NOT set ``pgfsys-dvisvgm``: that driver emits SVG
+    snippets dvisvgm understands but xdvipdfmx/pdftocairo drop, producing a blank
+    raster.  The native driver draws with PDF operations every PDF consumer reads.
     """
-    if spec.compiler in DVI_CAPABLE_COMPILERS:
-        vector_path = temp / f"{spec.id}.xdv"
-        command = [
-            spec.compiler,
-            "-no-pdf",
-            "-interaction=nonstopmode",
-            "-halt-on-error",
-            "-file-line-error",
-            "-output-directory",
-            str(temp),
-            str(tex_path),
-        ]
-        completed = _run_compiler(command, spec.source.parent)
-        if completed.returncode != 0 or not vector_path.is_file():
-            raise RenderError(f"figure {spec.id}: {spec.compiler} failed\n{_tail(completed.stdout)}")
-        pdf_path = None
-        if needs_pdf:
-            pdf_path = temp / f"{spec.id}.pdf"
-            _produce_pdf_from_xdv(vector_path, pdf_path, spec.id)
-        return vector_path, pdf_path
-
-    # pdflatex: PDF only.
     pdf_path = temp / f"{spec.id}.pdf"
     command = [
         spec.compiler,
@@ -203,22 +207,7 @@ def _compile(spec: FigureSpec, tex_path: Path, temp: Path, needs_vector: bool, n
     completed = _run_compiler(command, spec.source.parent)
     if completed.returncode != 0 or not pdf_path.is_file():
         raise RenderError(f"figure {spec.id}: {spec.compiler} failed\n{_tail(completed.stdout)}")
-    return None, pdf_path
-
-
-def _produce_pdf_from_xdv(xdv_path: Path, pdf_path: Path, figure_id: str) -> None:
-    xdvipdfmx_path = shutil.which("xdvipdfmx")
-    if xdvipdfmx_path is None:
-        raise RenderError(f"figure {figure_id}: xdvipdfmx is required to produce pdf from xdv")
-    command = [xdvipdfmx_path, "-o", str(pdf_path), str(xdv_path)]
-    completed = subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    if completed.returncode != 0 or not pdf_path.is_file():
-        raise RenderError(f"figure {figure_id}: xdvipdfmx failed\n{_tail(completed.stdout)}")
+    return pdf_path
 
 
 def _run_compiler(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -231,23 +220,25 @@ def _run_compiler(command: list[str], cwd: Path) -> subprocess.CompletedProcess[
     )
 
 
-def _tikz_document(source: str, preamble: tuple[str, ...], engine: str = "tikz") -> str:
+def _tikz_document(source: str, preamble: tuple[str, ...], engine: str = "tikz", *, svg: bool = False) -> str:
     # ``standalone`` is loaded WITHOUT its ``tikz`` option so that the PGF
     # system-layer driver below takes effect.  Passing ``tikz`` to the class
     # makes standalone \RequirePackage{tikz} during \documentclass, before our
     # \pgfsysdriver override is seen — PGF then picks the platform default
     # driver (xetex/pdftex) and dvisvgm loses every drawn shape, keeping only
-    # text.  pgfsys-dvisvgm.def emits the dvisvgm-native specials dvisvgm reads.
-    lines = [
-        r"\documentclass[border=2pt]{standalone}",
-        r"\def\pgfsysdriver{pgfsys-dvisvgm.def}",
-        *ENGINE_PACKAGES.get(engine, ENGINE_PACKAGES["tikz"]),
-        *preamble,
-        r"\begin{document}",
-        source,
-        r"\end{document}",
-        "",
-    ]
+    # text.
+    #
+    # SVG output sets pgfsys-dvisvgm.def so PGF emits the dvisvgm-native
+    # specials that dvisvgm reads.  PDF/PNG output must NOT set it: those same
+    # SVG snippets are dropped by xdvipdfmx/pdftocairo, yielding a blank raster.
+    # The native driver (selected automatically by xelatex/pdflatex) draws with
+    # PDF operations every PDF consumer understands.
+    lines = [r"\documentclass[border=2pt]{standalone}"]
+    if svg:
+        lines.append(r"\def\pgfsysdriver{pgfsys-dvisvgm.def}")
+    lines.extend(ENGINE_PACKAGES.get(engine, ENGINE_PACKAGES["tikz"]))
+    lines.extend(preamble)
+    lines.extend([r"\begin{document}", source, r"\end{document}", ""])
     return "\n".join(lines)
 
 
