@@ -117,6 +117,30 @@ options:
 
 `texcanvas init [--help] name [-d DIR]`：在 `-d`（默认当前目录）下创建名为 `name` 的脚手架目录。
 
+### TikZ 图形生成
+
+图形资源可以独立于 deck 生成，输出到论文或 PPT 共用的目录：
+
+```bash
+texcanvas graphics build examples/figures.yml \
+  --asset-root examples \
+  -o output/figures
+```
+
+`figures.yml` 示例：
+
+```yaml
+figures:
+  - id: model-architecture
+    engine: tikz
+    source: figures/model.tikz
+    preamble:
+      - "\\usetikzlibrary{positioning,arrows.meta}"
+    outputs: [svg, png]
+```
+
+TikZ 源文件是一个 `tikzpicture` 片段。当前使用 `pdflatex` 编译，再通过 `pdftocairo` 导出 SVG/PNG；需要安装 TeX Live/MacTeX 和 Poppler。SVG 适合论文和支持矢量图的编辑器，PNG 适合作为 PPT/WPS 的兼容 fallback。完整示例见 `examples/figures.yml`。
+
 - `input`：YAML deck 描述文件，必填。
 - `-o / --output`：输出 `.pptx` 路径，必填；父目录不存在时会自动创建。
 - `-t / --template`：可选模板；不传时使用随包分发的 `beamer-academic.pptx`。自定义模板会保留母版、主题和页面尺寸，模板中的示例页会被清空（输入模板本身不会被修改）。

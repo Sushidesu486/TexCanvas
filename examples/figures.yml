@@ -1,0 +1,7 @@
+figures:
+  - id: model-architecture
+    engine: tikz
+    source: figures/model.tikz
+    preamble:
+      - "\\usetikzlibrary{positioning,arrows.meta}"
+    outputs: [svg, png]

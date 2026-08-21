@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .build import build
 from .errors import TexCanvasError
+from .graphics import build_figures
 from .scaffold import init_project
 
 
@@ -91,10 +92,20 @@ def _add_init_parser(sub: argparse._SubParsersAction) -> None:
     )
 
 
+def _add_graphics_parser(sub: argparse._SubParsersAction) -> None:
+    graphics_p = sub.add_parser("graphics", help="生成论文和演示文稿图形资源")
+    graphics_sub = graphics_p.add_subparsers(dest="graphics_command", required=True, metavar="<graphics-command>")
+    build_p = graphics_sub.add_parser("build", help="从 figures.yml 生成 SVG/PNG")
+    build_p.add_argument("input", type=Path, help="图形 YAML 文件")
+    build_p.add_argument("-o", "--output", type=Path, required=True, help="图形输出目录")
+    build_p.add_argument("--asset-root", type=Path, help="图形源文件的相对路径基准目录")
+
+
 def parser() -> argparse.ArgumentParser:
     root, sub = _build_parser()
     _add_build_parser(sub)
     _add_init_parser(sub)
+    _add_graphics_parser(sub)
     return root
 
 
@@ -133,11 +144,25 @@ def _run_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_graphics_build(args: argparse.Namespace) -> int:
+    try:
+        report = build_figures(args.input, args.output, asset_root=args.asset_root)
+    except TexCanvasError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    print(f"Built figures in {Path(args.output).expanduser().resolve()}")
+    print(f"Figures: {report.figure_count}")
+    print(f"Outputs: {len(report.outputs)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "build":
         return _run_build(args)
     if args.command == "init":
         return _run_init(args)
+    if args.command == "graphics" and args.graphics_command == "build":
+        return _run_graphics_build(args)
     # argparse enforces required subcommand; unreachable.
     return 2

@@ -5,6 +5,7 @@ __pycache__/
 *.egg-info/
 .DS_Store
 output/*.pptx
+output/figures/
 !output/.gitkeep
 
 # build artifacts (sdist/wheel), reproducible via `python -m build`
@@ -15,4 +16,3 @@ dist/
 examples/demo.pptx
 # local title-page visual reference template, not part of the distributable
 templates/演示文稿.pptx
-

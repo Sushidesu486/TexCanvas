@@ -1,0 +1,11 @@
+\begin{tikzpicture}[
+  node distance=12mm and 18mm,
+  block/.style={draw, rounded corners, minimum width=24mm, minimum height=10mm, align=center, fill=blue!8},
+  arrow/.style={-Latex, thick}
+]
+  \node[block] (input) {Input\\$x$};
+  \node[block, right=of input] (encoder) {Encoder\\$h=f(x)$};
+  \node[block, right=of encoder] (head) {Prediction\\$\hat{y}=g(h)$};
+  \draw[arrow] (input) -- (encoder);
+  \draw[arrow] (encoder) -- (head);
+\end{tikzpicture}

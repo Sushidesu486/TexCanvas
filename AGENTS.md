@@ -342,6 +342,16 @@ TexCanvas **不自动缩排**超长内容，而是给出 warning（仍会生成 
 5. 公式只用支持的标记；复杂公式留空或写注释，导出后在 WPS 用公式编辑器补。
 6. 检查最终 PDF 的字体替换与换行（尤其跨机器时）。
 
+### 论文图形生成
+
+TikZ 图形可独立生成 SVG/PNG，供论文和 PPT 共用：
+
+```bash
+texcanvas graphics build examples/figures.yml --asset-root examples -o output/figures
+```
+
+`figures.yml` 中每个 figure 需要 `id`、`engine`、`source` 和 `outputs`。当前第一版支持 `engine: tikz`，source 是 `tikzpicture` 片段；系统需要 `pdflatex` 和 `pdftocairo`。输出默认不写回 deck YAML，文件位于 `output/figures/<id>.svg` / `.png`。
+
 ### 常见错误
 
 | 错误信息 | 原因 | 处理 |
@@ -362,7 +372,7 @@ TexCanvas **不自动缩排**超长内容，而是给出 warning（仍会生成 
 
 ## 8. 代码维护（扩展时再看）
 
-- **架构**：`loader.py`（YAML → frozen IR `Deck/Section/Slide/...`）→ `validate.py`（schema 校验 + warning）→ `render.py`（调度）→ `renderers/`（共享 `chrome.py` + 各版式 renderer）。IR 不含任何 `python-pptx` 对象。
+- **架构**：`loader.py`（YAML → frozen IR `Deck/Section/Slide/...`）→ `validate.py`（schema 校验 + warning）→ `render.py`（调度）→ `renderers/`（共享 `chrome.py` + 各版式 renderer）；`graphics.py` 负责独立的论文/PPT 图形 backend。IR 不含任何 `python-pptx` 对象。
 - **加新 slide kind**：① `model.py` 的 `SlideKind` 加成员 + 必要的 spec dataclass；② `loader.py._slide` 解析字段；③ `validate.py.validate_deck` 加校验分支、`content_warnings` 加阈值；④ `renderers/<kind>.py` 写 `render_<kind>(ctx, slide)`；⑤ `renderers/__init__.py` 导出；⑥ `render.py` 的 `RENDERERS` dict 注册；⑦ 补测试。
 - **字体不变量**：所有 run 必须经 `set_run_font(run, *, latin, ea)`（`renderers/common.py`），它同时写 `a:latin`+`a:ea`+`a:cs`。不要用裸 `run.font.name = ...`（只写 `a:latin`，CJK 会掉字体）。
 - **面板形状不变量**：内容面板用 `MSO_AUTO_SHAPE_TYPE.RECTANGLE`（`radius=False`），不要改回圆角。
