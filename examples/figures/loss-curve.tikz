@@ -1,0 +1,18 @@
+% Training dynamics: loss curves for train vs validation.
+\begin{tikzpicture}
+\begin{axis}[
+  width=7.2cm, height=5cm,
+  xlabel={Epoch}, ylabel={Loss},
+  label style={font=\small}, tick label style={font=\scriptsize},
+  legend style={font=\scriptsize, at={(0.98,0.98)}, anchor=north east, draw=gray!40},
+  grid=major, grid style={gray!18},
+]
+\addplot[blue, thick, mark=*, mark size=1.2pt] coordinates {
+  (1,2.30) (5,1.10) (10,0.60) (15,0.40) (20,0.30) (25,0.25) (30,0.22)
+};
+\addplot[red, thick, dashed, mark=square*, mark size=1.2pt] coordinates {
+  (1,2.50) (5,1.40) (10,0.90) (15,0.70) (20,0.60) (25,0.55) (30,0.53)
+};
+\legend{Train, Validation}
+\end{axis}
+\end{tikzpicture}

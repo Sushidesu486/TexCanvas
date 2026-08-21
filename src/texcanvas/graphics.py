@@ -14,7 +14,7 @@ import yaml
 from .errors import InputError, RenderError, ValidationError
 
 
-SUPPORTED_ENGINES = {"tikz"}
+SUPPORTED_ENGINES = {"tikz", "pgfplots"}
 SUPPORTED_OUTPUTS = {"svg", "png"}
 # xelatex/lualatex emit DVI/XDV via ``-no-pdf``, letting dvisvgm produce vector
 # SVG with selectable text.  pdflatex only emits PDF, so its SVG export degrades
@@ -24,6 +24,12 @@ DEFAULT_COMPILER = "xelatex"
 # Compilers that can emit DVI/XDV (vector-SVG capable).
 DVI_CAPABLE_COMPILERS = {"xelatex", "lualatex"}
 DEFAULT_DPI = 300
+# Per-engine LaTeX document assembly.  tikz draws structural diagrams; pgfplots
+# draws data plots (bars, lines, heatmaps) and needs its package + compat flag.
+ENGINE_PACKAGES: dict[str, tuple[str, ...]] = {
+    "tikz": (r"\usepackage{tikz}",),
+    "pgfplots": (r"\usepackage{tikz}", r"\usepackage{pgfplots}", r"\pgfplotsset{compat=1.18}"),
+}
 
 
 @dataclass(frozen=True)
@@ -128,7 +134,7 @@ def _build_figure(spec: FigureSpec, output_dir: Path) -> list[Path]:
     with tempfile.TemporaryDirectory(prefix=f"texcanvas-{spec.id}-") as temp_dir:
         temp = Path(temp_dir)
         tex_path = temp / f"{spec.id}.tex"
-        tex_path.write_text(_tikz_document(source, spec.preamble), encoding="utf-8")
+        tex_path.write_text(_tikz_document(source, spec.preamble, spec.engine), encoding="utf-8")
 
         vector_path, pdf_path = _compile(spec, tex_path, temp, needs_svg, needs_png)
 
@@ -225,10 +231,17 @@ def _run_compiler(command: list[str], cwd: Path) -> subprocess.CompletedProcess[
     )
 
 
-def _tikz_document(source: str, preamble: tuple[str, ...]) -> str:
+def _tikz_document(source: str, preamble: tuple[str, ...], engine: str = "tikz") -> str:
+    # ``standalone`` is loaded WITHOUT its ``tikz`` option so that the PGF
+    # system-layer driver below takes effect.  Passing ``tikz`` to the class
+    # makes standalone \RequirePackage{tikz} during \documentclass, before our
+    # \pgfsysdriver override is seen — PGF then picks the platform default
+    # driver (xetex/pdftex) and dvisvgm loses every drawn shape, keeping only
+    # text.  pgfsys-dvisvgm.def emits the dvisvgm-native specials dvisvgm reads.
     lines = [
-        r"\documentclass[tikz,border=2pt]{standalone}",
-        r"\usepackage{tikz}",
+        r"\documentclass[border=2pt]{standalone}",
+        r"\def\pgfsysdriver{pgfsys-dvisvgm.def}",
+        *ENGINE_PACKAGES.get(engine, ENGINE_PACKAGES["tikz"]),
         *preamble,
         r"\begin{document}",
         source,

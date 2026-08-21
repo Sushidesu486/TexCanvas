@@ -1,0 +1,28 @@
+% Transformer-style encoder block: input -> attention -> add+norm -> ffn -> add+norm -> output.
+\begin{tikzpicture}[
+  node distance=7mm,
+  box/.style={draw, rounded corners=2pt, minimum width=34mm, minimum height=8mm, align=center, font=\small},
+  attn/.style={box, fill=blue!12},
+  ffn/.style={box, fill=teal!15},
+  norm/.style={box, fill=gray!12, minimum height=6mm},
+  io/.style={box, fill=orange!15},
+  arrow/.style={-Latex, thick},
+  skip/.style={->, thick, dashed, gray!70}
+]
+  \node[io]   (in)  {Input $x$};
+  \node[attn, below=of in]  (a)  {Multi-Head Self-Attention};
+  \node[norm, below=of a]   (n1) {Add \& Norm};
+  \node[ffn,  below=of n1]  (f)  {Feed-Forward (MLP)};
+  \node[norm, below=of f]   (n2) {Add \& Norm};
+  \node[io,   below=of n2]  (out) {Output $z$};
+
+  \draw[arrow] (in)  -- (a);
+  \draw[arrow] (a)   -- (n1);
+  \draw[arrow] (n1)  -- (f);
+  \draw[arrow] (f)   -- (n2);
+  \draw[arrow] (n2)  -- (out);
+
+  % residual connections
+  \draw[skip] (in.west)  ++(-4mm,0) -- ++(0,-4.0) -| (n1.west);
+  \draw[skip] (n1.west) ++(-4mm,0) -- ++(0,-2.4) -| (n2.west);
+\end{tikzpicture}

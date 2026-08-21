@@ -1,0 +1,26 @@
+% Neural network architecture: a small MLP / encoder block.
+% Demonstrates layered blocks, weight arrows, and dimension annotations.
+\begin{tikzpicture}[
+  node distance=8mm,
+  layer/.style={draw, rounded corners=2pt, minimum width=18mm, minimum height=14mm, align=center, fill=blue!8, font=\small},
+  head/.style={draw, rounded corners=2pt, minimum width=18mm, minimum height=14mm, align=center, fill=orange!12, font=\small},
+  arrow/.style={-Latex, thick, gray!70},
+  dim/.style={font=\scriptsize\itshape, gray!80}
+]
+  \node[layer] (x)   {Input\\$x$};
+  \node[layer, right=of x]  (h1) {$h_1$\\$\sigma(W_1 x)$};
+  \node[layer, right=of h1] (h2) {$h_2$\\$\sigma(W_2 h_1)$};
+  \node[layer, right=of h2]  (h3) {$h_3$\\$\sigma(W_3 h_2)$};
+  \node[head,  right=of h3]  (y)  {Output\\$\hat{y}$};
+
+  \draw[arrow] (x)  -- (h1);
+  \draw[arrow] (h1) -- (h2);
+  \draw[arrow] (h2) -- (h3);
+  \draw[arrow] (h3) -- (y);
+
+  \node[dim, below=2mm of x]  {$d_{\mathrm{in}}$};
+  \node[dim, below=2mm of h1] {$128$};
+  \node[dim, below=2mm of h2] {$64$};
+  \node[dim, below=2mm of h3] {$32$};
+  \node[dim, below=2mm of y]  {$K$};
+\end{tikzpicture}

@@ -5,3 +5,42 @@ figures:
     preamble:
       - "\\usetikzlibrary{positioning,arrows.meta}"
     outputs: [svg, png]
+
+  - id: mlp
+    engine: tikz
+    source: figures/mlp.tikz
+    preamble:
+      - "\\usetikzlibrary{positioning,arrows.meta}"
+    outputs: [svg, png]
+
+  - id: transformer-block
+    engine: tikz
+    source: figures/transformer-block.tikz
+    preamble:
+      - "\\usetikzlibrary{positioning,arrows.meta}"
+    outputs: [svg, png]
+
+  - id: training-pipeline
+    engine: tikz
+    source: figures/training-pipeline.tikz
+    preamble:
+      - "\\usetikzlibrary{positioning,arrows.meta}"
+    outputs: [svg, png]
+    dpi: 600
+
+  # --- data plots (engine: pgfplots) ---
+  - id: ablation
+    engine: pgfplots
+    source: figures/ablation.tikz
+    outputs: [svg, png]
+
+  - id: loss-curve
+    engine: pgfplots
+    source: figures/loss-curve.tikz
+    outputs: [svg, png]
+
+  - id: confusion-matrix
+    engine: pgfplots
+    source: figures/confusion-matrix.tikz
+    outputs: [svg, png]
+    dpi: 600
