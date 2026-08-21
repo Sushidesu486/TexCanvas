@@ -143,8 +143,3 @@ sections:
           - "Doe et al. Example paper. Journal, 2024."
           - "Smith et al. Another paper. Journal, 2023."
 
-      - kind: conclusion
-        title: 致谢
-        takeaway: 感谢聆听
-        bullets:
-          - 欢迎交流与讨论
