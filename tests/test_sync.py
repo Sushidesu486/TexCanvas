@@ -150,3 +150,29 @@ def test_sync_pull_round_trips_xml_edits_and_inserted_image(deck_files: tuple[Pa
         slide_root = etree.fromstring(rebuilt_entries[slide_path])
         ordered_names.append(slide_root.find("./{%s}cSld" % P_NS).get("name").removeprefix("texcanvas:"))
     assert ordered_names[:2] == ["background/slide-2", "background/slide-1"]
+
+
+def test_build_with_overrides_preserves_new_yaml_slides(deck_files: tuple[Path, Path], tmp_path: Path):
+    source, asset_root = deck_files
+    original = tmp_path / "original.pptx"
+    overrides = tmp_path / "overrides.yml"
+    updated_source = tmp_path / "updated.yml"
+    rebuilt = tmp_path / "rebuilt.pptx"
+    build(source, original, asset_root=asset_root)
+    pull(original, overrides)
+
+    deck = yaml.safe_load(source.read_text(encoding="utf-8"))
+    deck["sections"][-1]["slides"].append(
+        {"kind": "conclusion", "title": "Thanks", "takeaway": "Thank you"}
+    )
+    updated_source.write_text(yaml.safe_dump(deck, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    report = build(updated_source, rebuilt, asset_root=asset_root, overrides=overrides)
+    assert report.slide_count == 7
+
+    with zipfile.ZipFile(rebuilt) as archive:
+        names = [
+            etree.fromstring(archive.read(name)).find("./{%s}cSld" % P_NS).get("name")
+            for name in archive.namelist()
+            if name.startswith("ppt/slides/slide") and name.endswith(".xml")
+        ]
+    assert names[-1] == "texcanvas:conclusion/slide-3"

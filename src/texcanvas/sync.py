@@ -101,7 +101,13 @@ def apply_overrides(prs: Presentation, path: str | Path) -> None:
         raise ValidationError("overrides.slides: expected a list")
 
     current_slides = list(prs.slides)
-    slide_by_id = {_slide_identity(slide, index): slide for index, slide in enumerate(current_slides)}
+    slide_by_id: dict[str, Any] = {}
+    for index, slide in enumerate(current_slides):
+        identity = _slide_identity(slide, index)
+        slide_by_id[identity] = slide
+        # Compatibility with overrides pulled from decks generated before
+        # semantic cSld names were introduced.
+        slide_by_id.setdefault(f"slide-{index + 1}", slide)
     _reorder_slides(prs, slide_by_id, slides_data)
 
     for slide_data in slides_data:
@@ -317,12 +323,15 @@ def _reorder_slides(prs: Presentation, slide_by_id: dict[str, Any], slides_data:
     desired = [item for item in sorted(slides_data, key=lambda item: item.get("order", 0)) if isinstance(item, dict)]
     current_sld_ids = prs.slides._sldIdLst
     pairs = list(zip(list(prs.slides), list(current_sld_ids)))
-    sld_id_by_identity = {
-        _slide_identity(slide, index): sld_id for index, (slide, sld_id) in enumerate(pairs)
-    }
+    sld_id_by_identity: dict[str, Any] = {}
+    for index, (slide, sld_id) in enumerate(pairs):
+        sld_id_by_identity[_slide_identity(slide, index)] = sld_id
+        sld_id_by_identity.setdefault(f"slide-{index + 1}", sld_id)
     ordered_ids = [sld_id_by_identity[item.get("id", "")] for item in desired if item.get("id", "") in sld_id_by_identity]
     if not ordered_ids:
         return
+    ordered_set = set(ordered_ids)
+    ordered_ids.extend(sld_id for sld_id in current_sld_ids if sld_id not in ordered_set)
     for sld_id in list(current_sld_ids):
         current_sld_ids.remove(sld_id)
     for sld_id in ordered_ids:
