@@ -61,6 +61,18 @@ def validate_deck(deck: Deck) -> None:
                     raise ValidationError(f"{slide_location}: conclusion requires takeaway or bullets")
             elif slide.kind is SlideKind.REFERENCES and not slide.items:
                 raise ValidationError(f"{slide_location}.items: at least one reference is required")
+            elif slide.kind is SlideKind.FIGURE:
+                if slide.figure is None:
+                    raise ValidationError(f"{slide_location}.figure: is required")
+                if not slide.figure.source.strip():
+                    raise ValidationError(f"{slide_location}.figure.source: is required")
+                if slide.figure.engine not in {"tikz", "pgfplots"}:
+                    raise ValidationError(
+                        f"{slide_location}.figure.engine: unsupported value {slide.figure.engine!r}; "
+                        f"expected 'tikz' or 'pgfplots'"
+                    )
+                if slide.figure.fit not in {"contain", "cover"}:
+                    raise ValidationError(f"{slide_location}.figure.fit: expected 'contain' or 'cover'")
             if slide.inline_image is not None:
                 if not slide.inline_image.path:
                     raise ValidationError(f"{slide_location}.inline_image.path: is required")

@@ -101,3 +101,45 @@ def test_block_styles_load():
             "kind": "block", "block": {"style": style, "body": "x"},
         }]))
         assert deck.sections[0].slides[0].block.style == expected
+
+
+def test_figure_requires_source():
+    with pytest.raises(ValidationError, match=r"figure\.source: is required"):
+        deck_from_mapping(minimal([{"kind": "figure", "figure": {"engine": "tikz"}}]))
+
+
+def test_figure_requires_figure_block():
+    with pytest.raises(ValidationError, match=r"figure: is required"):
+        deck_from_mapping(minimal([{"kind": "figure"}]))
+
+
+def test_figure_rejects_unknown_engine():
+    with pytest.raises(ValidationError, match=r"figure\.engine: unsupported value"):
+        deck_from_mapping(minimal([{
+            "kind": "figure",
+            "figure": {"engine": "dot", "source": "graph{}"},
+        }]))
+
+
+def test_figure_loads():
+    deck = deck_from_mapping(minimal([{
+        "kind": "figure",
+        "title": "MLP",
+        "caption": "Fig 1",
+        "figure": {
+            "engine": "tikz",
+            "source": "\\begin{tikzpicture}\\draw(0,0)--(1,1);\\end{tikzpicture}",
+            "preamble": ["\\usetikzlibrary{positioning}"],
+            "compiler": "xelatex",
+            "dpi": 600,
+            "fit": "contain",
+        },
+    }]))
+    fig = deck.sections[0].slides[0].figure
+    assert fig is not None
+    assert fig.engine == "tikz"
+    assert "tikzpicture" in fig.source
+    assert fig.preamble == ("\\usetikzlibrary{positioning}",)
+    assert fig.compiler == "xelatex"
+    assert fig.dpi == 600
+    assert fig.fit == "contain"

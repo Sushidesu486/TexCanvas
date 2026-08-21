@@ -14,6 +14,7 @@ from .model import (
     CodeSpec,
     Column,
     Deck,
+    FigureSpec,
     ImageSpec,
     InlineImage,
     Metadata,
@@ -144,6 +145,18 @@ def _slide(value: Any, location: str) -> Slide:
             align=_text(ii_raw.get("align", "right"), f"{location}.inline_image.align", required=True),
         )
 
+    figure = None
+    if "figure" in raw and raw["figure"] is not None:
+        fig_raw = _mapping(raw["figure"], f"{location}.figure")
+        figure = FigureSpec(
+            engine=_text(fig_raw.get("engine", "tikz"), f"{location}.figure.engine", required=True),
+            source=_text(fig_raw.get("source"), f"{location}.figure.source", required=True),
+            preamble=_text_tuple(fig_raw.get("preamble"), f"{location}.figure.preamble"),
+            compiler=_text(fig_raw.get("compiler", "xelatex"), f"{location}.figure.compiler", required=True),
+            dpi=int(fig_raw.get("dpi", 300)),
+            fit=_text(fig_raw.get("fit", "contain"), f"{location}.figure.fit", required=True),
+        )
+
     return Slide(
         kind=kind,
         title=_text(raw.get("title"), f"{location}.title"),
@@ -162,6 +175,7 @@ def _slide(value: Any, location: str) -> Slide:
         equation=equation,
         citation=_text(raw.get("citation"), f"{location}.citation"),
         inline_image=inline_image,
+        figure=figure,
     )
 
 

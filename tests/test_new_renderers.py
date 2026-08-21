@@ -7,6 +7,7 @@ from lxml import etree
 import pytest
 from PIL import Image
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 from texcanvas import build
 from texcanvas.mathml import normalize_math_namespaces_in_pptx
@@ -254,3 +255,51 @@ def test_pptx_zip_valid_for_new_kinds(primitives_deck, tmp_path: Path):
         names = set(archive.namelist())
     assert "[Content_Types].xml" in names
     assert "ppt/slides/slide1.xml" in names
+
+
+@pytest.mark.skipif(
+    __import__("shutil").which("xelatex") is None or __import__("shutil").which("pdftocairo") is None,
+    reason="TikZ toolchain not installed",
+)
+def test_figure_slide_embeds_compiled_png(tmp_path: Path):
+    """A figure slide compiles its TikZ source at build time and embeds a PNG.
+
+    The slide needs no pre-existing image file — the figure spec is the source
+    of truth, so the deck and its figures can never drift apart.
+    """
+    source = tmp_path / "deck.yml"
+    source.write_text(
+        r"""
+metadata: {title: Fig}
+sections:
+  - id: a
+    title: A
+    short_title: A
+    slides:
+      - kind: title
+        title: Fig
+      - kind: figure
+        title: MLP
+        caption: Fig 1
+        figure:
+          engine: tikz
+          source: |
+            \begin{tikzpicture}
+            \node[draw] (a) {Input}; \node[draw, right=of a] (b) {Out};
+            \draw[-Latex] (a) -- (b);
+            \end{tikzpicture}
+          preamble: ["\\usetikzlibrary{positioning,arrows.meta}"]
+""".strip(),
+        encoding="utf-8",
+    )
+    output = tmp_path / "fig.pptx"
+    report = build(source, output, asset_root=tmp_path)
+    assert report.slide_count == 2
+    assert output.is_file()
+
+    prs = Presentation(output)
+    figure_slide = prs.slides[1]
+    pictures = [s for s in figure_slide.shapes if s.shape_type == MSO_SHAPE_TYPE.PICTURE]
+    assert pictures, "figure slide must embed a compiled PNG"
+    # The compiled figure is named DSH_FIGURE (other images use DSH_IMAGE).
+    assert any(p.name == "DSH_FIGURE" for p in pictures)

@@ -12,6 +12,7 @@ from .renderers import (
     render_conclusion,
     render_content,
     render_equation,
+    render_figure,
     render_image,
     render_references,
     render_section_divider,
@@ -36,6 +37,7 @@ RENDERERS = {
     SlideKind.BLOCK: render_block,
     SlideKind.CONCLUSION: render_conclusion,
     SlideKind.REFERENCES: render_references,
+    SlideKind.FIGURE: render_figure,
 }
 
 

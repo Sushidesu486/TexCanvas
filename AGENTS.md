@@ -98,7 +98,7 @@ sections:                        # 至少一个 section
 
 ---
 
-## 3. 11 种 slide 版式
+## 3. 12 种 slide 版式
 
 每张 slide 必填 `kind`。下表是**字段速查**，详细规则见后续小节。
 
@@ -109,6 +109,7 @@ sections:                        # 至少一个 section
 | `content` | `body` 或 `bullets` 至少一项 | `title`, `body`, `bullets` |
 | `two_columns` | `left` + `right`（都非空） | `title` |
 | `image` | `image.path` | `image.fit`, `caption`, `title` |
+| `figure` | `figure.source` | `figure.engine`, `figure.fit`, `caption`, `title` |
 | `code` | `code.source` | `code.lang`, `code.caption`, `title` |
 | `table` | `table.header` 或 `table.rows` 至少一项 | `table.caption`, `title` |
 | `equation` | `equation` | `title` |
@@ -192,6 +193,30 @@ sections:                        # 至少一个 section
 - 相对路径基准：`--asset-root`，未指定时为 YAML 文件所在目录。
 - 支持格式：**PNG、JPEG**。SVG 不保证兼容，会被拒绝。
 - `contain` 完整显示并允许留白；`cover` 中心裁剪（保持纵横比，不拉伸）。
+
+### 3.5b `figure` — 内联 TikZ/pgfplots 图形
+
+```yaml
+- kind: figure
+  title: 模型架构
+  caption: 图 2：编码器-预测头结构
+  figure:
+    engine: tikz                  # tikz(结构图) | pgfplots(数据图)
+    source: |
+      \begin{tikzpicture}
+      \node[draw] (a) {Input}; \node[draw, right=of a] (b) {Encoder};
+      \draw[-Latex] (a) -- (b);
+      \end{tikzpicture}
+    preamble: ["\\usetikzlibrary{positioning,arrows.meta}"]
+    compiler: xelatex             # 默认 xelatex
+    dpi: 300                      # 默认 300,论文线图建议 600
+    fit: contain                  # contain(默认) | cover
+```
+
+- `figure.source` 必填，是 `tikzpicture` 片段（tikz）或含 `\begin{axis}` 的 pgfplots 代码。
+- build 时自动编译出 PNG 嵌入，**无需预先 `graphics build`**——图与 deck 永不脱节。
+- 其余字段与独立 `figures.yml` 一致（见「论文图形生成」）。需要 `xelatex`+`dvisvgm`+`pdftocairo` 工具链。
+- `--strict`（默认）下编译失败立即报错；`--no-strict` 下放占位框继续生成。
 
 ### 3.6 `code` — 代码块
 

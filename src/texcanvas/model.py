@@ -16,6 +16,7 @@ class SlideKind(StrEnum):
     BLOCK = "block"
     CONCLUSION = "conclusion"
     REFERENCES = "references"
+    FIGURE = "figure"
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,24 @@ class InlineImage:
 
 
 @dataclass(frozen=True)
+class FigureSpec:
+    """A figure declared inline in a deck and compiled to PNG at build time.
+
+    The ``engine``/``source``/``preamble``/``compiler``/``dpi`` fields mirror
+    the standalone ``figures.yml`` schema; ``fit`` and ``caption`` reuse the
+    image layout. The slide is rendered by compiling the TikZ/pgfplots source
+    and embedding the rasterized PNG, so the figure always matches the deck
+    without a separate ``graphics build`` step.
+    """
+    engine: str = "tikz"
+    source: str = ""
+    preamble: tuple[str, ...] = ()
+    compiler: str = "xelatex"
+    dpi: int = 300
+    fit: str = "contain"
+
+
+@dataclass(frozen=True)
 class Slide:
     kind: SlideKind
     title: str = ""
@@ -99,6 +118,7 @@ class Slide:
     notes: str = ""
     citation: str = ""
     inline_image: InlineImage | None = None
+    figure: FigureSpec | None = None
 
 
 @dataclass(frozen=True)

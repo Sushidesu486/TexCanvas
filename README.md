@@ -191,6 +191,7 @@ section 的 `id` 可省略：英文标题会生成 slug，无法安全 slug 化�
 - `content`：正文和 bullet list。可选 `citation`（页底灰色引用条）、`inline_image`（内联小图，文字环绕：`path`/`width`/`align: left|right`）。
 - `two_columns`：必须同时提供非空 `left` 和 `right`；列支持 `heading`、`body`、`bullets`。
 - `image`：必须提供 `image.path`；`fit` 可为 `contain` 或 `cover`；可选 `caption`。
+- `figure`：内联 TikZ/pgfplots 图形。必须提供 `figure.source`（`tikzpicture` 片段或含 `\begin{axis}` 的 pgfplots 代码）；build 时自动编译出 PNG 嵌入，无需预先 `graphics build`。可选 `figure.engine: tikz|pgfplots`、`preamble`、`compiler`、`dpi`、`fit`、`caption`。与 `image` 共享几何布局。
 - `code`：必须提供 `code.source`；可选 `code.lang`（python/c/cpp/java/javascript/rust/go 等，未识别时回退为通用 C 系高亮）、`code.caption`。代码以等宽字体、带行内语法高亮（关键字/字符串/注释/数字不同颜色）绘制在直角面板内，全部为可编辑文本。
 - `table`：`table.header` 或 `table.rows` 至少有一项；`header` 为字符串列表，`rows` 为字符串列表的列表（行可参差，缺列留空）；可选 `table.caption`。生成原生 PPTX 表格，表头使用主题色填充，奇数行斑马底色，单元格带细网格线。
 - `equation`：必须提供 `equation` 文本（LaTeX）。系统装有 `pandoc` 时转成原生 OMML 公式对象（支持 `\frac`/`\sum`/`\sqrt`/`\begin{pmatrix}` 矩阵/`\begin{aligned}` 对齐等完整结构），再写入 PowerPoint 要求的 `a14:m` 扩展容器和 `mc:AlternateContent` 兼容结构，WPS 可双击编辑；缺失时回退 Unicode 符号方案。以居中直角面板呈现。
