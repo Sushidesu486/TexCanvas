@@ -342,6 +342,17 @@ TexCanvas **不自动缩排**超长内容，而是给出 warning（仍会生成 
 5. 公式只用支持的标记；复杂公式留空或写注释，导出后在 WPS 用公式编辑器补。
 6. 检查最终 PDF 的字体替换与换行（尤其跨机器时）。
 
+### 人工微调同步（sync pull）
+
+如果在 WPS/PowerPoint 中移动 block、修改文字、插入图片或调整 slide 顺序，可把编辑后的 PPTX 提取为覆盖层：
+
+```bash
+texcanvas sync pull output/edited.pptx -o overrides.yml
+texcanvas build deck.yml -o output/rebuilt.pptx --overrides overrides.yml
+```
+
+`sync pull` 不反写 `deck.yml`，而是生成 `overrides.yml` 和新增图片资源目录。YAML 继续作为语义源文件，覆盖层记录人工布局/文字/图片/顺序调整。公式、母版、动画、SmartArt 等复杂对象暂不反向转换。生成 slide 的 `p:cSld/@name` 会保存稳定语义 ID，用于 slide 重排后的匹配；`python-pptx` 不暴露的扩展对象则由 XML 适配器处理。
+
 ### 常见错误
 
 | 错误信息 | 原因 | 处理 |
@@ -362,7 +373,7 @@ TexCanvas **不自动缩排**超长内容，而是给出 warning（仍会生成 
 
 ## 8. 代码维护（扩展时再看）
 
-- **架构**：`loader.py`（YAML → frozen IR `Deck/Section/Slide/...`）→ `validate.py`（schema 校验 + warning）→ `render.py`（调度）→ `renderers/`（共享 `chrome.py` + 各版式 renderer）。IR 不含任何 `python-pptx` 对象。
+- **架构**：`loader.py`（YAML → frozen IR `Deck/Section/Slide/...`）→ `validate.py`（schema 校验 + warning）→ `render.py`（调度）→ `renderers/`（共享 `chrome.py` + 各版式 renderer）；`sync.py` 在生成后的 PPTX XML 与 `overrides.yml` 之间提供反向适配。IR 不含任何 `python-pptx` 对象。
 - **加新 slide kind**：① `model.py` 的 `SlideKind` 加成员 + 必要的 spec dataclass；② `loader.py._slide` 解析字段；③ `validate.py.validate_deck` 加校验分支、`content_warnings` 加阈值；④ `renderers/<kind>.py` 写 `render_<kind>(ctx, slide)`；⑤ `renderers/__init__.py` 导出；⑥ `render.py` 的 `RENDERERS` dict 注册；⑦ 补测试。
 - **字体不变量**：所有 run 必须经 `set_run_font(run, *, latin, ea)`（`renderers/common.py`），它同时写 `a:latin`+`a:ea`+`a:cs`。不要用裸 `run.font.name = ...`（只写 `a:latin`，CJK 会掉字体）。
 - **面板形状不变量**：内容面板用 `MSO_AUTO_SHAPE_TYPE.RECTANGLE`（`radius=False`），不要改回圆角。

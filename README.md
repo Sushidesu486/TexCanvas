@@ -75,6 +75,7 @@ report = build(
     output="output/demo.pptx",
     strict=True,
     asset_root="examples",
+    overrides="overrides.yml",  # optional human-edit layer
 )
 print(report.slide_count, report.warnings)
 ```
@@ -91,13 +92,14 @@ texcanvas [-h] <command> ...
 commands:
   build     从 YAML 生成 PPTX
   init      在当前目录创建一个 deck 脚手架目录
+  sync      在 YAML 与人工编辑后的 PPTX 之间同步覆盖层
 ```
 
 `texcanvas build --help`：
 
 ```text
 usage: texcanvas build [-h] -o OUTPUT [-t TEMPLATE] [--asset-root ASSET_ROOT]
-                       [--strict | --no-strict] [--verbose]
+                       [--strict | --no-strict] [--verbose] [--overrides OVERRIDES]
                        input
 
 positional arguments:
@@ -113,9 +115,21 @@ options:
   --strict              严格模式（默认）：图片缺失、损坏或格式不支持时立即失败
   --no-strict           宽松模式：记录 warning 并在页面放入可编辑占位框后继续生成
   --verbose             打印每条 warning 的详细信息
+  --overrides OVERRIDES 可选的人类 PPTX 微调覆盖文件
 ```
 
 `texcanvas init [--help] name [-d DIR]`：在 `-d`（默认当前目录）下创建名为 `name` 的脚手架目录。
+
+### 人工微调同步
+
+PPTX 在 WPS/PowerPoint 中微调后，可以把当前布局、文字、图片和 slide 顺序提取成覆盖层：
+
+```bash
+texcanvas sync pull output/edited.pptx -o overrides.yml
+texcanvas build deck.yml -o output/rebuilt.pptx --overrides overrides.yml
+```
+
+`sync pull` 不会修改 `deck.yml`，而是生成 `overrides.yml` 和提取出来的图片资源目录。YAML 继续负责语义内容，覆盖层负责人工调整。当前支持文字、位置/尺寸、图片和 slide 顺序；复杂公式、母版、动画和 SmartArt 暂不反向转换。生成的 slide XML 会写入稳定语义 ID，因此即使人工调整了 slide 顺序，也能匹配回原来的 slide。
 
 - `input`：YAML deck 描述文件，必填。
 - `-o / --output`：输出 `.pptx` 路径，必填；父目录不存在时会自动创建。

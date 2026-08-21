@@ -61,9 +61,12 @@ def render_deck(
     width = prs.slide_width / EMU_PER_INCH
     height = prs.slide_height / EMU_PER_INCH
     for section_index, section in enumerate(deck.sections):
-        for slide_model in section.slides:
+        for slide_index, slide_model in enumerate(section.slides):
             page_number += 1
             pptx_slide = prs.slides.add_slide(layout)
+            # Keep a stable semantic identity in the slide XML so sync pull can
+            # recognize a slide after a human reorders the presentation.
+            pptx_slide._element.cSld.set("name", f"texcanvas:{section.id}/slide-{slide_index + 1}")
             ctx = RenderContext(
                 slide=pptx_slide,
                 deck=deck,
@@ -86,4 +89,3 @@ def render_deck(
                 if isinstance(exc, (RenderError,)):
                     raise
                 raise RenderError(f"slide {page_number} ({slide_model.kind.value}): rendering failed: {exc}") from exc
-

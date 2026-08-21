@@ -12,3 +12,18 @@ def test_cli_builds_and_prints_summary(deck_files: tuple[Path, Path], tmp_path: 
     assert "Slides: 6" in captured.out
     assert "Warnings: 0" in captured.out
     assert output.exists()
+
+
+def test_cli_sync_pull_writes_overrides(deck_files: tuple[Path, Path], tmp_path: Path, capsys):
+    source, asset_root = deck_files
+    pptx = tmp_path / "edited.pptx"
+    overrides = tmp_path / "overrides.yml"
+    main(["build", str(source), "--asset-root", str(asset_root), "-o", str(pptx)])
+    capsys.readouterr()
+
+    status = main(["sync", "pull", str(pptx), "-o", str(overrides)])
+    captured = capsys.readouterr()
+    assert status == 0
+    assert "Wrote" in captured.out
+    assert "Slides: 6" in captured.out
+    assert overrides.exists()
