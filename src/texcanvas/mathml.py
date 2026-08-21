@@ -11,13 +11,10 @@ trips unknown namespace elements verbatim, so we can:
 If pandoc is not installed or fails, callers fall back to the legacy Unicode
 renderer in ``equation.py``, so decks still build (with degraded math).
 
-After python-pptx saves, the injected math elements are serialized with
-synthetic numeric prefixes (``ns0:``, ``ns18:`` ...) and the ``m``/``w``
-namespaces are not declared on the slide root — WPS in particular refuses to
-render math in that state. ``normalize_math_namespaces_in_pptx`` rewrites each
-slide part so the ``m`` and ``w`` namespaces are declared on the ``p:sld`` root
-and all math elements use the canonical ``m:`` prefix; call it on the saved
-pptx path.
+PowerPoint does not place OMML directly under ``a:p``. It stores the math
+payload in an ``a14:m`` DrawingML extension and wraps the containing shape in
+``mc:AlternateContent``. ``normalize_math_namespaces_in_pptx`` applies that
+shape-level compatibility wrapper after ``python-pptx`` saves the deck.
 """
 
 from __future__ import annotations
@@ -26,14 +23,19 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
+from copy import deepcopy
 from pathlib import Path
 
 from lxml import etree
 
 MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+A14_NS = "http://schemas.microsoft.com/office/drawing/2010/main"
+MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 _OMATH_TAG = "{%s}oMath" % MATH_NS
 _PRESENTATION_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
+_P_SP_TAG = "{%s}sp" % _PRESENTATION_NS
+_A14_M_TAG = "{%s}m" % A14_NS
 
 
 def pandoc_available() -> bool:
@@ -86,13 +88,12 @@ def _extract_first_omath(docx_bytes: bytes) -> etree._Element | None:
 
 
 def normalize_math_namespaces_in_pptx(path: str | Path) -> bool:
-    """Rewrite slide parts so math uses the canonical ``m:`` prefix.
+    """Rewrite slide parts into PowerPoint's native equation structure.
 
-    python-pptx serializes injected ``m:``-namespace elements with synthetic
-    numeric prefixes and does not declare the math namespace on the ``p:sld``
-    root. WPS does not render math in that state. This rebuilds each slide
-    XML root with an ``m`` binding added to its namespace map so lxml emits the
-    canonical ``m:`` prefix everywhere.
+    PowerPoint stores OMML inside an ``a14:m`` DrawingML extension. The shape
+    containing that extension is represented as ``mc:AlternateContent`` with a
+    modern ``mc:Choice`` and a legacy ``mc:Fallback``. ``python-pptx`` has no
+    public API for either construct, so this normalization runs after saving.
 
     Returns True if any slide part was rewritten. Safe to call on decks with
     no math: parts without ``m:`` elements are left untouched.
@@ -121,24 +122,69 @@ def normalize_math_namespaces_in_pptx(path: str | Path) -> bool:
 
 
 def _rewrite_slide_xml(data: bytes) -> bytes | None:
-    """Rebuild a slide XML root with the ``m`` namespace declared."""
+    """Add required namespaces and wrap equation shapes in AlternateContent."""
     root = etree.fromstring(data)
     if root.tag != "{%s}sld" % _PRESENTATION_NS:
         return None
-    if MATH_NS in root.nsmap.values() and WORD_NS in root.nsmap.values():
-        # Already declares bindings for math and WordprocessingML runs.
+    changed = False
+
+    required = {"m": MATH_NS, "a14": A14_NS, "mc": MC_NS}
+    if any(namespace not in root.nsmap.values() for namespace in required.values()):
+        new_root = etree.Element(root.tag, nsmap={**dict(root.nsmap), **required})
+        for key, value in root.attrib.items():
+            new_root.set(key, value)
+        new_root.text = root.text
+        new_root.tail = root.tail
+        for child in root:
+            new_root.append(child)
+        root = new_root
+        changed = True
+
+    for shape in list(root.iter(_P_SP_TAG)):
+        if shape.getparent() is None:
+            continue
+        if any(ancestor.tag == "{%s}AlternateContent" % MC_NS for ancestor in shape.iterancestors()):
+            continue
+        if shape.find(".//" + _A14_M_TAG) is None:
+            continue
+        parent = shape.getparent()
+        index = parent.index(shape)
+        modern_shape = shape
+        fallback_shape = _fallback_shape(shape)
+
+        alternate = etree.Element("{%s}AlternateContent" % MC_NS)
+        choice = etree.SubElement(alternate, "{%s}Choice" % MC_NS, Requires="a14")
+        choice.append(modern_shape)
+        fallback = etree.SubElement(alternate, "{%s}Fallback" % MC_NS)
+        fallback.append(fallback_shape)
+        parent.insert(index, alternate)
+        changed = True
+
+    if not changed:
         return None
-    new_root = etree.Element(
-        root.tag,
-        nsmap={**dict(root.nsmap), "m": MATH_NS, "w": WORD_NS},
-    )
-    for key, value in root.attrib.items():
-        new_root.set(key, value)
-    new_root.text = root.text
-    new_root.tail = root.tail
-    for child in root:
-        new_root.append(child)
-    return etree.tostring(new_root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def _fallback_shape(shape: etree._Element) -> etree._Element:
+    """Create a simple editable text fallback for an equation shape."""
+    fallback = deepcopy(shape)
+    tx_body = fallback.find("{%s}txBody" % _PRESENTATION_NS)
+    if tx_body is None:
+        return fallback
+    for child in list(tx_body):
+        tx_body.remove(child)
+
+    body_pr = etree.SubElement(tx_body, "{%s}bodyPr" % A_NS)
+    body_pr.set("wrap", "square")
+    etree.SubElement(tx_body, "{%s}lstStyle" % A_NS)
+    paragraph = etree.SubElement(tx_body, "{%s}p" % A_NS)
+    run = etree.SubElement(paragraph, "{%s}r" % A_NS)
+    run_pr = etree.SubElement(run, "{%s}rPr" % A_NS)
+    etree.SubElement(run_pr, "{%s}latin" % A_NS).set("typeface", "Helvetica")
+    text = fallback.find("{%s}nvSpPr/{%s}cNvPr" % (_PRESENTATION_NS, _PRESENTATION_NS))
+    fallback_text = text.get("descr", "Equation") if text is not None else "Equation"
+    etree.SubElement(run, "{%s}t" % A_NS).text = fallback_text
+    return fallback
 
 
 def strip_math_namespace_prefixes(element: etree._Element) -> None:

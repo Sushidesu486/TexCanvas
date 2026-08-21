@@ -239,7 +239,7 @@ sections:                        # 至少一个 section
 
 > ⚠️ YAML 里反斜杠需转义：写 `\\frac`，或用 `equation: |` 块标量（推荐，反斜杠不用双写）。
 
-**渲染方式**：当系统装有 `pandoc` 时，equation 文本被转成**原生 OMML 公式对象**（`<m:oMath>`），WPS/PowerPoint 中可双击编辑，支持完整的 LaTeX 数学结构。`pandoc` 不存在时回退到 Unicode 符号方案（覆盖面有限）。公式 run 的字体（Latin Helvetica / 东亚 苹方-简）会被显式写入 `m:rPr`，不依赖主题数学字体。
+**渲染方式**：当系统装有 `pandoc` 时，equation 文本被转成**原生 OMML 公式对象**（`<m:oMath>`），再放入 PowerPoint 要求的 `a14:m` 扩展容器，并用 `mc:AlternateContent` 包住公式形状；WPS/PowerPoint 中可双击编辑，支持完整的 LaTeX 数学结构。`pandoc` 不存在时回退到 Unicode 符号方案（覆盖面有限）。公式 run 的字体（Latin Helvetica / 东亚 苹方-简）会被显式写入 DrawingML `a:rPr`，不依赖主题数学字体。由于 PowerPoint 的公式形状使用 `AlternateContent`，`python-pptx` 重新读取时可能不会把该公式暴露在 `slide.shapes` 集合中，应直接检查最终 slide XML。
 
 **pandoc 在场时支持**（原生 OMML）：
 - 分数 `\frac{a}{b}`、上下标 `^{...}`/`_{...}`、根号 `\sqrt{...}`、`n` 次根 `\sqrt[n]{...}`

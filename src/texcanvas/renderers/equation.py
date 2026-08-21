@@ -14,7 +14,8 @@ from .common import RenderContext, add_box, set_run_font
 
 MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
-W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+A14_NS = "http://schemas.microsoft.com/office/drawing/2010/main"
+WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 
 # Unicode replacements for common LaTeX math symbols and operators.
@@ -194,57 +195,49 @@ def _render_omml_line(paragraph, latex: str, *, latin: str, ea: str) -> bool:
     the caller should fall back to the legacy Unicode renderer.
 
     The ``oMath`` is wrapped in an ``oMathPara`` (with centered justification)
-    because PowerPoint/WPS render a block-level equation only when it sits
-    inside ``m:oMathPara`` — a bare ``m:oMath`` directly under ``a:p`` is
-    treated as inline math and some renderers show it as empty.
+    and then placed inside PowerPoint's ``a14:m`` extension. A bare OMML node
+    directly under ``a:p`` is not a valid PresentationML equation shape.
 
-    Font settings use the WordprocessingML ``<w:rPr>/<w:rFonts>`` child that
-    OMML defines for math runs.  DrawingML ``<a:latin>`` elements are valid for
-    ordinary PowerPoint text runs, but are not valid children of ``<m:rPr>``;
-    placing them there makes otherwise well-formed equations fail to render in
-    WPS/PowerPoint.
+    PowerPoint stores an equation in the DrawingML 2010 ``<a14:m>`` extension
+    container.  The OMML payload stays inside that container, while its font
+    properties use DrawingML ``<a:rPr>`` children (the same shape used by an
+    equation written by PowerPoint itself).
     """
     omath = latex_to_omml(latex)
     if omath is None:
         return False
     _apply_fonts_to_math(omath, latin=latin, ea=ea)
-    oMathPara = etree.SubElement(paragraph._p, "{%s}oMathPara" % MATH_NS)
+    math_container = etree.SubElement(paragraph._p, "{%s}m" % A14_NS)
+    oMathPara = etree.SubElement(math_container, "{%s}oMathPara" % MATH_NS)
     oMathParaPr = etree.SubElement(oMathPara, "{%s}oMathParaPr" % MATH_NS)
     jc = etree.SubElement(oMathParaPr, "{%s}jc" % MATH_NS)
-    jc.set("{%s}val" % MATH_NS, "center")
+    jc.set("{%s}val" % MATH_NS, "centerGroup")
     oMathPara.append(deepcopy(omath))
+    etree.SubElement(paragraph._p, "{%s}endParaRPr" % A_NS)
     return True
 
 
 def _apply_fonts_to_math(omath, *, latin: str, ea: str) -> None:
-    """Stamp valid WordprocessingML font properties into every math run.
-
-    OMML math runs may carry a WordprocessingML ``w:rPr`` child.  Keep any
-    pandoc-generated math properties in ``m:rPr`` and put the font face in
-    ``w:rPr/w:rFonts``.  In particular, do not put DrawingML ``a:*`` elements
-    inside ``m:rPr``: that violates the OMML content model and causes blank
-    equations in WPS/PowerPoint.
-    """
+    """Stamp PowerPoint-style DrawingML run properties into math runs."""
     for run in omath.iter("{%s}r" % MATH_NS):
-        math_rpr = run.find("{%s}rPr" % MATH_NS)
-        if math_rpr is not None:
-            # Remove the invalid representation emitted by older TexCanvas
-            # versions when this helper is used on an already-mutated element.
-            for child in list(math_rpr):
-                if etree.QName(child).namespace == A_NS:
-                    math_rpr.remove(child)
+        # Remove the invalid WordprocessingML representation emitted by the
+        # previous implementation when this helper sees an already-mutated
+        # element.
+        for child in list(run):
+            if child.tag == "{%s}rPr" % WORD_NS:
+                run.remove(child)
 
-        word_rpr = run.find("{%s}rPr" % W_NS)
-        if word_rpr is None:
-            word_rpr = etree.Element("{%s}rPr" % W_NS)
+        math_rpr = run.find("{%s}rPr" % MATH_NS)
+        drawing_rpr = run.find("{%s}rPr" % A_NS)
+        if drawing_rpr is None:
+            drawing_rpr = etree.Element("{%s}rPr" % A_NS)
             insert_at = 0
             if math_rpr is not None:
                 insert_at = run.index(math_rpr) + 1
-            run.insert(insert_at, word_rpr)
+            run.insert(insert_at, drawing_rpr)
 
-        fonts = word_rpr.find("{%s}rFonts" % W_NS)
-        if fonts is None:
-            fonts = etree.Element("{%s}rFonts" % W_NS)
-            word_rpr.insert(0, fonts)
-        for attribute, typeface in (("ascii", latin), ("hAnsi", latin), ("eastAsia", ea), ("cs", ea)):
-            fonts.set("{%s}%s" % (W_NS, attribute), typeface)
+        for tag, typeface in (("latin", latin), ("ea", ea), ("cs", ea)):
+            existing = drawing_rpr.find("{%s}%s" % (A_NS, tag))
+            if existing is None:
+                existing = etree.SubElement(drawing_rpr, "{%s}%s" % (A_NS, tag))
+            existing.set("typeface", typeface)

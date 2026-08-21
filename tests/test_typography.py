@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
+from lxml import etree
 from pptx import Presentation
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.ns import qn
@@ -148,22 +150,20 @@ def test_cjk_runs_use_pingfang_latin_runs_use_helvetica(tmp_path: Path):
     assert code_fonts["latin"] == "Menlo"
     assert code_fonts["ea"] == "苹方-简"
 
-    # Equation: Latin font is Helvetica. With pandoc available the equation is a
-    # native <m:oMath> element; check the math runs use schema-valid
-    # WordprocessingML font properties (not DrawingML children under m:rPr).
-    eq = _shape(prs.slides[3], "DSH_EQUATION")
+    # Equation: PowerPoint stores the native OMML inside an a14:m extension,
+    # so inspect the final slide XML rather than python-pptx's shape collection.
     MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-    W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-    omaths = list(eq.text_frame._txBody.iter("{%s}oMath" % MATH_NS))
-    assert omaths, "expected a native OMML equation when pandoc is available"
-    run = next(omaths[0].iter("{%s}r" % MATH_NS))
-    word_rPr = run.find("{%s}rPr" % W_NS)
-    fonts = word_rPr.find("{%s}rFonts" % W_NS) if word_rPr is not None else None
-    assert fonts is not None
-    assert fonts.get("{%s}ascii" % W_NS) == "Helvetica"
-    assert fonts.get("{%s}hAnsi" % W_NS) == "Helvetica"
-    assert fonts.get("{%s}eastAsia" % W_NS) == "苹方-简"
-    assert fonts.get("{%s}cs" % W_NS) == "苹方-简"
+    A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    with zipfile.ZipFile(output) as archive:
+        slide_root = etree.fromstring(archive.read("ppt/slides/slide4.xml"))
+    omath = slide_root.find(".//{%s}oMath" % MATH_NS)
+    assert omath is not None, "expected a native OMML equation when pandoc is available"
+    run = next(omath.iter("{%s}r" % MATH_NS))
+    drawing_rPr = run.find("{%s}rPr" % A_NS)
+    assert drawing_rPr is not None
+    assert drawing_rPr.find("{%s}latin" % A_NS).get("typeface") == "Helvetica"
+    assert drawing_rPr.find("{%s}ea" % A_NS).get("typeface") == "苹方-简"
+    assert drawing_rPr.find("{%s}cs" % A_NS).get("typeface") == "苹方-简"
 
 
 _SQUARE_DECK = """

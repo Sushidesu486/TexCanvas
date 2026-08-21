@@ -16,6 +16,15 @@ def _shape(slide, name):
     return next(shape for shape in slide.shapes if shape.name == name)
 
 
+def _equation_omath(output: Path, slide_number: int):
+    math_ns = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read(f"ppt/slides/slide{slide_number}.xml"))
+    omath = root.find(".//{%s}oMath" % math_ns)
+    assert omath is not None
+    return omath
+
+
 @pytest.fixture
 def primitives_deck(tmp_path: Path) -> tuple[Path, Path]:
     assets = tmp_path / "assets"
@@ -121,43 +130,34 @@ def test_equation_renders_omml_when_pandoc_available(primitives_deck, tmp_path: 
     source, asset_root = primitives_deck
     output = tmp_path / "eq.pptx"
     build(source, output, asset_root=asset_root)
-    prs = Presentation(output)
-    slide = prs.slides[2]
-    body = _shape(slide, "DSH_EQUATION")
     # With pandoc installed, the equation renders as a native <m:oMath> element.
     MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-    omaths = list(body.text_frame._txBody.iter("{%s}oMath" % MATH_NS))
-    assert len(omaths) == 1
+    omath = _equation_omath(output, 3)
     # Structure: a fraction (m:f) and an n-ary sum (m:nary) with a subscript (m:sSub).
-    tags = {__import__("lxml").etree.QName(node).localname for node in omaths[0].iter() if __import__("lxml").etree.QName(node).namespace == MATH_NS}
+    tags = {etree.QName(node).localname for node in omath.iter() if etree.QName(node).namespace == MATH_NS}
     assert "f" in tags       # \frac{1}{N}
     assert "nary" in tags    # \sum
     assert "sSub" in tags    # y_i
 
 
 @pytest.mark.skipif(__import__("shutil").which("pandoc") is None, reason="pandoc not installed")
-def test_equation_math_fonts_use_wordprocessing_run_properties(primitives_deck, tmp_path: Path):
+def test_equation_math_fonts_use_drawingml_run_properties(primitives_deck, tmp_path: Path):
     source, asset_root = primitives_deck
     output = tmp_path / "eq-fonts.pptx"
     build(source, output, asset_root=asset_root)
-    body = _shape(Presentation(output).slides[2], "DSH_EQUATION")
     math_ns = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-    word_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
     drawing_ns = "http://schemas.openxmlformats.org/drawingml/2006/main"
-    omath = next(body.text_frame._txBody.iter("{%s}oMath" % math_ns))
+    omath = _equation_omath(output, 3)
     runs = list(omath.iter("{%s}r" % math_ns))
     assert runs
     for run in runs:
         math_rpr = run.find("{%s}rPr" % math_ns)
         assert math_rpr is None or not any(child.tag.startswith("{%s}" % drawing_ns) for child in math_rpr)
-        word_rpr = run.find("{%s}rPr" % word_ns)
-        assert word_rpr is not None
-        fonts = word_rpr.find("{%s}rFonts" % word_ns)
-        assert fonts is not None
-        assert fonts.get("{%s}ascii" % word_ns) == "Helvetica"
-        assert fonts.get("{%s}hAnsi" % word_ns) == "Helvetica"
-        assert fonts.get("{%s}eastAsia" % word_ns) == "苹方-简"
-        assert fonts.get("{%s}cs" % word_ns) == "苹方-简"
+        drawing_rpr = run.find("{%s}rPr" % drawing_ns)
+        assert drawing_rpr is not None
+        assert drawing_rpr.find("{%s}latin" % drawing_ns).get("typeface") == "Helvetica"
+        assert drawing_rpr.find("{%s}ea" % drawing_ns).get("typeface") == "苹方-简"
+        assert drawing_rpr.find("{%s}cs" % drawing_ns).get("typeface") == "苹方-简"
 
 
 @pytest.mark.skipif(__import__("shutil").which("pandoc") is None, reason="pandoc not installed")
@@ -170,15 +170,41 @@ def test_equation_zip_xml_is_renderable_and_namespace_normalization_is_idempoten
         slide_xml = archive.read("ppt/slides/slide3.xml")
     root = etree.fromstring(slide_xml)
     math_ns = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-    word_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    a14_ns = "http://schemas.microsoft.com/office/drawing/2010/main"
+    mc_ns = "http://schemas.openxmlformats.org/markup-compatibility/2006"
     drawing_ns = "http://schemas.openxmlformats.org/drawingml/2006/main"
     assert root.nsmap["m"] == math_ns
-    assert root.nsmap["w"] == word_ns
+    assert root.nsmap["a14"] == a14_ns
+    assert root.nsmap["mc"] == mc_ns
     omath = root.find(".//{%s}oMath" % math_ns)
     assert omath is not None
     for math_rpr in omath.iter("{%s}rPr" % math_ns):
         assert not any(etree.QName(child).namespace == drawing_ns for child in math_rpr)
     assert normalize_math_namespaces_in_pptx(output) is False
+
+
+@pytest.mark.skipif(__import__("shutil").which("pandoc") is None, reason="pandoc not installed")
+def test_equation_uses_powerpoint_math_extension_wrapper(primitives_deck, tmp_path: Path):
+    source, asset_root = primitives_deck
+    output = tmp_path / "eq-wrapper.pptx"
+    build(source, output, asset_root=asset_root)
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("ppt/slides/slide3.xml"))
+
+    p_ns = "http://schemas.openxmlformats.org/presentationml/2006/main"
+    mc_ns = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+    a14_ns = "http://schemas.microsoft.com/office/drawing/2010/main"
+    math_ns = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    choices = root.findall(".//{%s}Choice" % mc_ns)
+    assert choices, "PowerPoint equations must be inside mc:AlternateContent"
+    alternate = choices[0].getparent()
+    fallback = alternate.find("{%s}Fallback" % mc_ns)
+    assert fallback is not None
+    math_extensions = root.findall(".//{%s}m" % a14_ns)
+    assert math_extensions, "expected the a14:m PowerPoint math extension"
+    assert math_extensions[0].find("{%s}oMathPara" % math_ns) is not None
+    assert fallback.find(".//{%s}m" % a14_ns) is None
+    assert root.find(".//{%s}sp/{%s}txBody/{%s}p/{%s}oMathPara" % (p_ns, p_ns, "http://schemas.openxmlformats.org/drawingml/2006/main", math_ns)) is None
 
 
 @pytest.mark.skipif(__import__("shutil").which("pandoc") is None, reason="pandoc not installed")
@@ -201,12 +227,9 @@ sections:
     )
     output = tmp_path / "matrix.pptx"
     build(source, output, asset_root=tmp_path)
-    prs = Presentation(output)
-    body = _shape(prs.slides[0], "DSH_EQUATION")
     MATH_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-    omaths = list(body.text_frame._txBody.iter("{%s}oMath" % MATH_NS))
-    assert len(omaths) == 1
-    tags = {__import__("lxml").etree.QName(node).localname for node in omaths[0].iter() if __import__("lxml").etree.QName(node).namespace == MATH_NS}
+    omath = _equation_omath(output, 1)
+    tags = {etree.QName(node).localname for node in omath.iter() if etree.QName(node).namespace == MATH_NS}
     assert "d" in tags and "m" in tags  # delimiter (pmatrix) + matrix
 
 
